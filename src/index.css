@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+@theme {
+  /* Premium / Elegant palette — charcoal-black + gold on warm off-white
+     (ui-ux-pro-max "Liquid Glass" design system; see design-system/cakeuwish/MASTER.md) */
+  --color-background: #FAF9F7;        /* warm off-white */
+  --color-foreground: #1C1917;        /* near-black (stone-900) */
+  --color-primary: #1C1917;           /* premium charcoal-black */
+  --color-primary-hover: #000000;
+  --color-on-primary: #FAF9F7;
+  --color-secondary: #44403C;         /* warm grey */
+  --color-accent: #A16207;            /* gold (WCAG-adjusted) */
+  --color-accent-hover: #854D0E;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1C1917;
+  --color-muted: #F1EDE8;             /* soft warm-neutral section fill */
+  --color-muted-foreground: #57534E;  /* stone-600 */
+  --color-border: #E7E1D9;            /* soft warm border */
+  --color-cream: #F5EFE6;             /* champagne (warm light surface) */
+  --color-espresso: #1C1917;          /* repurposed -> charcoal-black */
+  --color-gold: #A16207;
+  --color-gold-soft: #CA8A04;         /* decorative-only brighter gold */
+  --color-whatsapp: #25D366;
+
+  --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --shadow-cake: 0 32px 64px -16px rgba(28, 25, 23, 0.28);
+  --shadow-soft: 0 4px 24px rgba(28, 25, 23, 0.10);
+  --shadow-gold: 0 0 40px 6px rgba(161, 98, 7, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  overflow-x: hidden; /* Safari < 16 fallback (no `clip` support) */
+}
+@supports (overflow: clip) {
+  body { overflow-x: clip; } /* modern engines: clip avoids a scroll container that would break the sticky pins */
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  margin: 0;
+}
+
+/* Lenis smooth scroll */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+/* Film-grain texture overlay */
+.grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  opacity: 0.4;
+}
+
+/* Scatter→arc showcase flip cards */
+.sg-card { perspective: 1000px; }
+.sg-inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.sg-card:hover .sg-inner,
+.sg-card:focus-within .sg-inner { transform: rotateY(180deg); }
+.sg-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 22px rgba(28, 25, 23, 0.20);
+}
+.sg-back { transform: rotateY(180deg); }
+.sg-card { cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  .sg-inner { transition: none; }
+}
+
+/* Lightbox: tile flips open to the middle of the screen */
+@keyframes lb-in {
+  0%   { transform: rotateY(82deg) scale(0.78); opacity: 0; }
+  55%  { opacity: 1; }
+  100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+}
+@keyframes lb-fade { from { opacity: 0; } to { opacity: 1; } }
+.lb-backdrop { animation: lb-fade 0.28s ease both; }
+.lb-panel { animation: lb-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; transform-style: preserve-3d; }
+@media (prefers-reduced-motion: reduce) {
+  .lb-panel { animation: lb-fade 0.2s ease both; }
+}
+
+/* (Circle blend-cursor removed — native pointer + milk-trail canvas instead.) */
+
+/* Scroll-reveal transitions */
+[data-reveal] {
+  opacity: 0; transform: translateY(42px);
+  transition: opacity .85s cubic-bezier(.22,1,.36,1), transform .85s cubic-bezier(.22,1,.36,1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+[data-reveal].revealed { opacity: 1; transform: none; }
+.reveal-mask { display: inline-block; overflow: hidden; vertical-align: bottom; }
+
+/* Attention pulse on the hero nav arrows once the cake has assembled */
+@keyframes navPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(161,98,7,0.55); }
+  70%  { box-shadow: 0 0 0 18px rgba(161,98,7,0); }
+  100% { box-shadow: 0 0 0 0 rgba(161,98,7,0); }
+}
+.nav-highlight { animation: navPulse 1.7s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+
+/* Utility: hide scrollbar on horizontal scrollers */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+:focus-visible {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 5px rgba(250, 249, 247, 0.7); /* light halo keeps the ring visible on dark/coloured surfaces (FAB, footer) */
+}
+
+/* ── Liquid-glass utilities (premium signature) ───────────────────────────── */
+.glass {
+  background: rgba(250, 249, 247, 0.62);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 8px 32px rgba(28, 25, 23, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.glass-dark {
+  background: rgba(28, 25, 23, 0.55);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+/* Hairline gold accent rule, used under section eyebrows */
+.gold-rule { height: 1px; background: linear-gradient(90deg, transparent, var(--color-accent), transparent); }
+@media (prefers-reduced-motion: no-preference) {
+  .glass, .glass-dark { transition: background .4s ease, box-shadow .4s ease; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

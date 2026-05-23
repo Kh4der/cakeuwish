@@ -1,0 +1,164 @@
+{
+  "total_png_kb": 24177.6,
+  "total_webp_kb": 2655.0,
+  "total_saving_kb": 21522.6,
+  "total_saving_pct": 89.0,
+  "files": {
+    "25e166a0-4076-4378-91d2-fd62b1890e46/00-topper.png": {
+      "png_kb": 227.5,
+      "webp_kb": 29.1
+    },
+    "25e166a0-4076-4378-91d2-fd62b1890e46/01-tier-top.png": {
+      "png_kb": 556.9,
+      "webp_kb": 55.4
+    },
+    "25e166a0-4076-4378-91d2-fd62b1890e46/02-tier-bot.png": {
+      "png_kb": 596.9,
+      "webp_kb": 44.9
+    },
+    "25e166a0-4076-4378-91d2-fd62b1890e46/03-board.png": {
+      "png_kb": 268.7,
+      "webp_kb": 43.7
+    },
+    "25e166a0-4076-4378-91d2-fd62b1890e46/full.png": {
+      "png_kb": 1411.9,
+      "webp_kb": 153.6
+    },
+    "5d2ec516-28dc-4e17-8801-5391e8a2f0c8/00-topper.png": {
+      "png_kb": 291.2,
+      "webp_kb": 28.8
+    },
+    "5d2ec516-28dc-4e17-8801-5391e8a2f0c8/01-tier-top.png": {
+      "png_kb": 618.2,
+      "webp_kb": 60.6
+    },
+    "5d2ec516-28dc-4e17-8801-5391e8a2f0c8/02-tier-bot.png": {
+      "png_kb": 967.4,
+      "webp_kb": 100.8
+    },
+    "5d2ec516-28dc-4e17-8801-5391e8a2f0c8/03-board.png": {
+      "png_kb": 288.6,
+      "webp_kb": 35.7
+    },
+    "5d2ec516-28dc-4e17-8801-5391e8a2f0c8/full.png": {
+      "png_kb": 1998.7,
+      "webp_kb": 207.4
+    },
+    "6a8115e3-88ee-4506-bda0-a6f4e7ec579c/00-topper.png": {
+      "png_kb": 50.9,
+      "webp_kb": 3.0
+    },
+    "6a8115e3-88ee-4506-bda0-a6f4e7ec579c/01-tier-top.png": {
+      "png_kb": 473.7,
+      "webp_kb": 38.4
+    },
+    "6a8115e3-88ee-4506-bda0-a6f4e7ec579c/02-tier-mid.png": {
+      "png_kb": 816.7,
+      "webp_kb": 94.9
+    },
+    "6a8115e3-88ee-4506-bda0-a6f4e7ec579c/03-tier-bot.png": {
+      "png_kb": 268.1,
+      "webp_kb": 19.9
+    },
+    "6a8115e3-88ee-4506-bda0-a6f4e7ec579c/04-board.png": {
+      "png_kb": 51.8,
+      "webp_kb": 3.0
+    },
+    "6a8115e3-88ee-4506-bda0-a6f4e7ec579c/full.png": {
+      "png_kb": 1401.7,
+      "webp_kb": 139.5
+    },
+    "8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c/00-topper.png": {
+      "png_kb": 265.9,
+      "webp_kb": 36.0
+    },
+    "8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c/01-tier-top.png": {
+      "png_kb": 555.6,
+      "webp_kb": 48.5
+    },
+    "8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c/02-tier-bot.png": {
+      "png_kb": 820.4,
+      "webp_kb": 105.2
+    },
+    "8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c/03-board.png": {
+      "png_kb": 187.6,
+      "webp_kb": 25.4
+    },
+    "8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c/full.png": {
+      "png_kb": 1633.1,
+      "webp_kb": 193.9
+    },
+    "a99e9e06-dbb2-4bde-8d13-f33521d03dfb/00-topper.png": {
+      "png_kb": 199.5,
+      "webp_kb": 25.9
+    },
+    "a99e9e06-dbb2-4bde-8d13-f33521d03dfb/01-tier-top.png": {
+      "png_kb": 346.3,
+      "webp_kb": 37.4
+    },
+    "a99e9e06-dbb2-4bde-8d13-f33521d03dfb/02-tier-mid.png": {
+      "png_kb": 415.8,
+      "webp_kb": 45.2
+    },
+    "a99e9e06-dbb2-4bde-8d13-f33521d03dfb/03-tier-bot.png": {
+      "png_kb": 426.8,
+      "webp_kb": 49.8
+    },
+    "a99e9e06-dbb2-4bde-8d13-f33521d03dfb/04-board.png": {
+      "png_kb": 238.5,
+      "webp_kb": 24.3
+    },
+    "a99e9e06-dbb2-4bde-8d13-f33521d03dfb/full.png": {
+      "png_kb": 1300.3,
+      "webp_kb": 154.8
+    },
+    "ba90402b-d98e-4f7d-ab25-53200a10595b/00-topper.png": {
+      "png_kb": 178.3,
+      "webp_kb": 20.3
+    },
+    "ba90402b-d98e-4f7d-ab25-53200a10595b/01-tier-top.png": {
+      "png_kb": 485.7,
+      "webp_kb": 41.6
+    },
+    "ba90402b-d98e-4f7d-ab25-53200a10595b/02-tier-mid.png": {
+      "png_kb": 760.9,
+      "webp_kb": 102.4
+    },
+    "ba90402b-d98e-4f7d-ab25-53200a10595b/03-tier-bot.png": {
+      "png_kb": 628.0,
+      "webp_kb": 65.2
+    },
+    "ba90402b-d98e-4f7d-ab25-53200a10595b/04-board.png": {
+      "png_kb": 245.2,
+      "webp_kb": 47.7
+    },
+    "ba90402b-d98e-4f7d-ab25-53200a10595b/full.png": {
+      "png_kb": 2098.6,
+      "webp_kb": 251.9
+    },
+    "e135e65c-bac5-40fa-9acd-1dd74cc189ca/00-topper.png": {
+      "png_kb": 233.2,
+      "webp_kb": 22.3
+    },
+    "e135e65c-bac5-40fa-9acd-1dd74cc189ca/01-tier-top.png": {
+      "png_kb": 457.1,
+      "webp_kb": 48.7
+    },
+    "e135e65c-bac5-40fa-9acd-1dd74cc189ca/02-tier-mid.png": {
+      "png_kb": 541.4,
+      "webp_kb": 55.8
+    },
+    "e135e65c-bac5-40fa-9acd-1dd74cc189ca/03-tier-bot.png": {
+      "png_kb": 401.5,
+      "webp_kb": 43.2
+    },
+    "e135e65c-bac5-40fa-9acd-1dd74cc189ca/04-board.png": {
+      "png_kb": 59.3,
+      "webp_kb": 3.3
+    },
+    "e135e65c-bac5-40fa-9acd-1dd74cc189ca/full.png": {
+      "png_kb": 1409.7,
+      "webp_kb": 147.5
+    }
+  }
+}

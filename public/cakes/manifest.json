@@ -1,0 +1,277 @@
+{
+  "cakes": [
+    {
+      "id": "5d2ec516-28dc-4e17-8801-5391e8a2f0c8",
+      "source": "refined_images/5d2ec516-28dc-4e17-8801-5391e8a2f0c8.png",
+      "themeGuess": "barnyard farm kids 2-tier birthday cake",
+      "layers": [
+        {
+          "file": "00-topper.png",
+          "label": "topper",
+          "yTop": 0,
+          "yBottom": 340,
+          "yCenter": 170
+        },
+        {
+          "file": "01-tier-top.png",
+          "label": "tier-top",
+          "yTop": 340,
+          "yBottom": 820,
+          "yCenter": 580
+        },
+        {
+          "file": "02-tier-bot.png",
+          "label": "tier-bot",
+          "yTop": 820,
+          "yBottom": 1350,
+          "yCenter": 1085
+        },
+        {
+          "file": "03-board.png",
+          "label": "board",
+          "yTop": 1350,
+          "yBottom": 1536,
+          "yCenter": 1443
+        }
+      ]
+    },
+    {
+      "id": "25e166a0-4076-4378-91d2-fd62b1890e46",
+      "source": "refined_images/25e166a0-4076-4378-91d2-fd62b1890e46.png",
+      "themeGuess": "glam fashion silhouette dancer 2-tier birthday cake",
+      "layers": [
+        {
+          "file": "00-topper.png",
+          "label": "topper",
+          "yTop": 0,
+          "yBottom": 280,
+          "yCenter": 140
+        },
+        {
+          "file": "01-tier-top.png",
+          "label": "tier-top",
+          "yTop": 280,
+          "yBottom": 820,
+          "yCenter": 550
+        },
+        {
+          "file": "02-tier-bot.png",
+          "label": "tier-bot",
+          "yTop": 820,
+          "yBottom": 1380,
+          "yCenter": 1100
+        },
+        {
+          "file": "03-board.png",
+          "label": "board",
+          "yTop": 1380,
+          "yBottom": 1536,
+          "yCenter": 1458
+        }
+      ]
+    },
+    {
+      "id": "8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c",
+      "source": "refined_images/8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c.png",
+      "themeGuess": "military marine corps 2-tier patriotic cake",
+      "layers": [
+        {
+          "file": "00-topper.png",
+          "label": "topper",
+          "yTop": 0,
+          "yBottom": 320,
+          "yCenter": 160
+        },
+        {
+          "file": "01-tier-top.png",
+          "label": "tier-top",
+          "yTop": 320,
+          "yBottom": 810,
+          "yCenter": 565
+        },
+        {
+          "file": "02-tier-bot.png",
+          "label": "tier-bot",
+          "yTop": 810,
+          "yBottom": 1360,
+          "yCenter": 1085
+        },
+        {
+          "file": "03-board.png",
+          "label": "board",
+          "yTop": 1360,
+          "yBottom": 1536,
+          "yCenter": 1448
+        }
+      ]
+    },
+    {
+      "id": "e135e65c-bac5-40fa-9acd-1dd74cc189ca",
+      "source": "refined_images/e135e65c-bac5-40fa-9acd-1dd74cc189ca.png",
+      "themeGuess": "indian wedding figurine bride groom 3-tier cake",
+      "layers": [
+        {
+          "file": "00-topper.png",
+          "label": "topper",
+          "yTop": 0,
+          "yBottom": 300,
+          "yCenter": 150
+        },
+        {
+          "file": "01-tier-top.png",
+          "label": "tier-top",
+          "yTop": 300,
+          "yBottom": 700,
+          "yCenter": 500
+        },
+        {
+          "file": "02-tier-mid.png",
+          "label": "tier-mid",
+          "yTop": 700,
+          "yBottom": 1130,
+          "yCenter": 915
+        },
+        {
+          "file": "03-tier-bot.png",
+          "label": "tier-bot",
+          "yTop": 1130,
+          "yBottom": 1420,
+          "yCenter": 1275
+        },
+        {
+          "file": "04-board.png",
+          "label": "board",
+          "yTop": 1420,
+          "yBottom": 1536,
+          "yCenter": 1478
+        }
+      ]
+    },
+    {
+      "id": "ba90402b-d98e-4f7d-ab25-53200a10595b",
+      "source": "refined_images/ba90402b-d98e-4f7d-ab25-53200a10595b.png",
+      "themeGuess": "black geode luxury acrylic-tier 3-tier cake",
+      "layers": [
+        {
+          "file": "00-topper.png",
+          "label": "topper",
+          "yTop": 0,
+          "yBottom": 260,
+          "yCenter": 130
+        },
+        {
+          "file": "01-tier-top.png",
+          "label": "tier-top",
+          "yTop": 260,
+          "yBottom": 650,
+          "yCenter": 455
+        },
+        {
+          "file": "02-tier-mid.png",
+          "label": "tier-mid",
+          "yTop": 650,
+          "yBottom": 1080,
+          "yCenter": 865
+        },
+        {
+          "file": "03-tier-bot.png",
+          "label": "tier-bot",
+          "yTop": 1080,
+          "yBottom": 1400,
+          "yCenter": 1240
+        },
+        {
+          "file": "04-board.png",
+          "label": "board",
+          "yTop": 1400,
+          "yBottom": 1536,
+          "yCenter": 1468
+        }
+      ]
+    },
+    {
+      "id": "a99e9e06-dbb2-4bde-8d13-f33521d03dfb",
+      "source": "refined_images/a99e9e06-dbb2-4bde-8d13-f33521d03dfb.png",
+      "themeGuess": "indian 50th anniversary 4-tier red gold cake",
+      "layers": [
+        {
+          "file": "00-topper.png",
+          "label": "topper",
+          "yTop": 0,
+          "yBottom": 250,
+          "yCenter": 125
+        },
+        {
+          "file": "01-tier-top.png",
+          "label": "tier-top",
+          "yTop": 250,
+          "yBottom": 600,
+          "yCenter": 425
+        },
+        {
+          "file": "02-tier-mid.png",
+          "label": "tier-mid",
+          "yTop": 600,
+          "yBottom": 960,
+          "yCenter": 780
+        },
+        {
+          "file": "03-tier-bot.png",
+          "label": "tier-bot",
+          "yTop": 960,
+          "yBottom": 1270,
+          "yCenter": 1115
+        },
+        {
+          "file": "04-board.png",
+          "label": "board",
+          "yTop": 1270,
+          "yBottom": 1536,
+          "yCenter": 1403
+        }
+      ]
+    },
+    {
+      "id": "6a8115e3-88ee-4506-bda0-a6f4e7ec579c",
+      "source": "refined_images/6a8115e3-88ee-4506-bda0-a6f4e7ec579c.png",
+      "themeGuess": "white rose wedding 3-tier buttercream cake",
+      "layers": [
+        {
+          "file": "00-topper.png",
+          "label": "topper",
+          "yTop": 0,
+          "yBottom": 130,
+          "yCenter": 65
+        },
+        {
+          "file": "01-tier-top.png",
+          "label": "tier-top",
+          "yTop": 130,
+          "yBottom": 640,
+          "yCenter": 385
+        },
+        {
+          "file": "02-tier-mid.png",
+          "label": "tier-mid",
+          "yTop": 640,
+          "yBottom": 1130,
+          "yCenter": 885
+        },
+        {
+          "file": "03-tier-bot.png",
+          "label": "tier-bot",
+          "yTop": 1130,
+          "yBottom": 1400,
+          "yCenter": 1265
+        },
+        {
+          "file": "04-board.png",
+          "label": "board",
+          "yTop": 1400,
+          "yBottom": 1536,
+          "yCenter": 1468
+        }
+      ]
+    }
+  ]
+}
