@@ -158,7 +158,7 @@ export default function CustomCursor() {
 
   if (!on) return null
   return (
-    <div ref={wrapRef} aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9998, mixBlendMode: 'difference', perspective: '600px', opacity: 0, transition: 'opacity 0.45s ease' }}>
+    <div ref={wrapRef} aria-hidden="true" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9998, perspective: '600px', opacity: 0, transition: 'opacity 0.45s ease' }}>
       {WORD.map((ch, i) => (
         <span
           key={i}
@@ -172,6 +172,7 @@ export default function CustomCursor() {
             fontWeight: 700,
             fontSize: sizeFor(ch) + 'px',
             color: '#fff',
+            mixBlendMode: 'difference', // per-letter blend (was a full-screen layer → far cheaper)
             lineHeight: 1,
           }}
         >

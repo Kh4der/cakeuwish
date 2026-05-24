@@ -124,7 +124,9 @@ export default function Hero() {
   // used), with a window-scroll bootstrap until Lenis is ready.
   useEffect(() => {
     if (reduced) return
+    let visible = true
     const onScroll = () => {
+      if (!visible) return // skip re-placing the 7 cakes while the hero is off-screen
       const s = stageRef.current
       if (!s) return
       const total = s.offsetHeight - window.innerHeight
@@ -139,10 +141,13 @@ export default function Hero() {
       lenis = (window as unknown as { __lenis?: LenisLike }).__lenis
       if (lenis) { lenis.on('scroll', onScroll); window.removeEventListener('scroll', onScroll) }
     }, 0)
+    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) onScroll() }, { threshold: 0 })
+    if (stageRef.current) io.observe(stageRef.current)
     return () => {
       window.clearTimeout(id)
       window.removeEventListener('scroll', onScroll)
       lenis?.off('scroll', onScroll)
+      io.disconnect()
     }
   }, [reduced])
 

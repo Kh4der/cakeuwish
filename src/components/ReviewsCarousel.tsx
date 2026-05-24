@@ -35,9 +35,12 @@ export default function ReviewsCarousel() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // animation loop
+  // animation loop — ONLY runs while the carousel is on-screen. A continuously
+  // spinning 3D (preserve-3d) ring is heavy on the compositor; leaving it running
+  // off-screen made the whole page's animations lag.
   useEffect(() => {
     let raf = 0
+    let running = false
     const apply = () => {
       if (ringRef.current) {
         ringRef.current.style.transform = `translateZ(${-radius}px) rotateY(${rotation.current}deg)`
@@ -55,8 +58,12 @@ export default function ReviewsCarousel() {
       raf = requestAnimationFrame(frame)
     }
     apply()
-    raf = requestAnimationFrame(frame)
-    return () => cancelAnimationFrame(raf)
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !running) { running = true; raf = requestAnimationFrame(frame) }
+      else if (!e.isIntersecting && running) { running = false; cancelAnimationFrame(raf) }
+    }, { threshold: 0 })
+    if (stageRef.current) io.observe(stageRef.current)
+    return () => { cancelAnimationFrame(raf); io.disconnect() }
   }, [radius, reduced])
 
   const onPointerDown = (e: React.PointerEvent) => {

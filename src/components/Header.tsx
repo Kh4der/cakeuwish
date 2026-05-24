@@ -31,7 +31,7 @@ export default function Header() {
       className="fixed inset-x-0 top-0 z-[80] transition-transform duration-300"
       style={{ transform: show ? 'translateY(0)' : 'translateY(-100%)' }}
     >
-      <div className="border-b border-border/60 bg-background/75 backdrop-blur-xl backdrop-saturate-150 shadow-soft">
+      <div className="border-b border-border/60 bg-background/95 shadow-soft">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 sm:px-8" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
           <a href="#top" onClick={(e) => { e.preventDefault(); go('top') }} className="font-display text-xl font-bold text-primary">
             CakeUWish

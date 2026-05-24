@@ -163,7 +163,9 @@ export default function ScatterGallery() {
   // scroll-driven phases via CSS-sticky pin + manual progress
   useEffect(() => {
     if (reduced) return
+    let visible = true
     const onScroll = () => {
+      if (!visible) return // skip transforming the 23 cards while the showcase is off-screen
       const stage = stageRef.current
       if (!stage) return
       const total = stage.offsetHeight - window.innerHeight
@@ -172,7 +174,9 @@ export default function ScatterGallery() {
     }
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) onScroll() }, { threshold: 0 })
+    if (stageRef.current) io.observe(stageRef.current)
+    return () => { window.removeEventListener('scroll', onScroll); io.disconnect() }
   }, [reduced])
 
   // mouse parallax
