@@ -46,30 +46,40 @@ export default function Intro() {
     o.textBaseline = 'middle'
     o.textAlign = 'left'
     const family = '"Playfair Display", Georgia, serif'
-    const fs = Math.min(w * (w < 768 ? 0.16 : 0.12), 150) // larger ratio on phones so the wordmark isn't tiny
-    const fsU = fs * 1.3
     const y = h * 0.5
+    // Start from a target size, then SHRINK-TO-FIT so the whole "CAKE U WISH"
+    // (with the 1.3× gold "U") always fits inside the canvas — this is what fixes
+    // the leading "C" and trailing "H" getting clipped on narrow phones.
+    let fs = Math.min(w * (w < 768 ? 0.2 : 0.12), 150)
+    let fsU = fs * 1.3
+    o.font = `900 ${fs}px ${family}`
+    let wCake = o.measureText('CAKE ').width
+    let wWish = o.measureText(' WISH').width
+    o.font = `900 ${fsU}px ${family}`
+    let wU = o.measureText('U').width
+    let total = wCake + wU + wWish
+    const maxW = w * 0.9 // keep a safe margin on both sides so nothing touches the edge
+    if (total > maxW) {
+      const k = maxW / total // measureText scales linearly with font px, so this is exact
+      fs *= k; fsU *= k; wCake *= k; wWish *= k; wU *= k; total = maxW
+    }
     const cakeFont = `900 ${fs}px ${family}`
     const uFont = `900 ${fsU}px ${family}`
-    o.font = cakeFont
-    const wCake = o.measureText('CAKE ').width
-    const wWish = o.measureText(' WISH').width
-    o.font = uFont
-    const wU = o.measureText('U').width
-    const total = wCake + wU + wWish
     let x = w / 2 - total / 2
     o.font = cakeFont; o.fillStyle = '#1C1917'; o.fillText('CAKE ', x, y); x += wCake
     o.font = uFont; o.fillStyle = '#A16207'; o.fillText('U', x, y); uRef.current = { x: x + wU / 2, y }; x += wU
     o.font = cakeFont; o.fillStyle = '#1C1917'; o.fillText(' WISH', x, y)
 
     const img = o.getImageData(0, 0, w, h).data
-    const step = 6 // uniform density (fewer particles on phones than the old step 4 → lighter)
+    const mobile = w < 768
+    const step = mobile ? 4 : 6 // denser sampling on phones so the wordmark actually reads
+    const baseSz = mobile ? 2.7 : 2.1 // + slightly bigger dots on phones → solid, legible letters
     const parts: Particle[] = []
     for (let py = 0; py < h; py += step) {
       for (let px = 0; px < w; px += step) {
         const idx = (py * w + px) * 4
         if (img[idx + 3] > 130) {
-          parts.push({ x: px, y: py, hx: px, hy: py, vx: 0, vy: 0, c: `rgb(${img[idx]},${img[idx + 1]},${img[idx + 2]})`, ph: Math.random() * Math.PI * 2, sz: 2.1 + Math.random() * 0.9 })
+          parts.push({ x: px, y: py, hx: px, hy: py, vx: 0, vy: 0, c: `rgb(${img[idx]},${img[idx + 1]},${img[idx + 2]})`, ph: Math.random() * Math.PI * 2, sz: baseSz + Math.random() * 0.9 })
         }
       }
     }
@@ -126,10 +136,10 @@ export default function Intro() {
       const { w, h, dpr } = sizeRef.current
       const t = (now - tStart) * 0.001
       const p = clamp01(progressRef.current)
-      const disperse = ease(clamp01((p - 0.4) / 0.45)) // CAKE & WISH fly away from the U
-      const zoom = 1 + 7.5 * ease(clamp01((p - 0.45) / 0.5)) // zoom IN to the U
-      const fade = 1 - clamp01((p - 0.78) / 0.2)
-      const interact = 1 - clamp01(p / 0.4) // cursor forces fade out before the fly-away
+      const disperse = ease(clamp01((p - 0.55) / 0.45)) // CAKE & WISH drift gently outward from the U
+      const zoom = 1 + 1.6 * ease(clamp01((p - 0.55) / 0.45)) // GENTLE zoom into the U (stays on-screen, no sparse overflow)
+      const fade = 1 - clamp01((p - 0.72) / 0.28) // fades out cohesively, finishing right as the hero arrives
+      const interact = 1 - clamp01(p / 0.5) // wordmark stays readable + interactive for most of the scroll
       const u = uRef.current
       const m = mouseRef.current
 
@@ -155,8 +165,8 @@ export default function Intro() {
         const sx = pt.hx + (Math.sin(t * 1.1 + pt.ph) + Math.sin(t * 0.53 + pt.ph * 1.7)) * SHIMMER
         const sy = pt.hy + (Math.cos(t * 0.9 + pt.ph * 1.3) + Math.sin(t * 0.61 + pt.ph)) * SHIMMER
         // scroll fly-away: home pushed radially outward from the U
-        const hx = sx + (pt.hx - u.x) * disperse * 2.4
-        const hy = sy + (pt.hy - u.y) * disperse * 2.4
+        const hx = sx + (pt.hx - u.x) * disperse * 1.3
+        const hy = sy + (pt.hy - u.y) * disperse * 1.3
 
         if (live) {
           const dx = pt.x - m.x, dy = pt.y - m.y
@@ -211,6 +221,35 @@ export default function Intro() {
       mouseRef.current = { x: e.clientX - r.left, y: e.clientY - r.top }
     }
     window.addEventListener('pointermove', toLocal, { passive: true })
+    // Tap / click impulse: a quick touch can't build a velocity wake, so give the
+    // field an outward BURST at the tap point. This makes the wordmark react to a
+    // single tap on phones (where any drag just scrolls the page away instead).
+    const onDown = (e: PointerEvent) => {
+      if (clamp01(progressRef.current) > 0.3) return // ignore once scrolling toward the hero
+      const r = canvas.getBoundingClientRect()
+      const lx = e.clientX - r.left, ly = e.clientY - r.top
+      const BR = 180, BR2 = BR * BR, POW = 11
+      const parts = particlesRef.current
+      for (let i = 0; i < parts.length; i++) {
+        const pt = parts[i]
+        const dx = pt.x - lx, dy = pt.y - ly
+        const d2 = dx * dx + dy * dy
+        if (d2 < BR2) {
+          const d = Math.sqrt(d2) || 1
+          const f = (1 - d / BR) * POW
+          pt.vx += (dx / d) * f; pt.vy += (dy / d) * f
+        }
+      }
+      mouseRef.current = { x: lx, y: ly }
+    }
+    window.addEventListener('pointerdown', onDown, { passive: true })
+    // Release the field when the touch lifts / the pointer leaves: move the cursor
+    // off-canvas so the repel+curl stop and the particles drift home and SETTLE.
+    // Phones have no hover/leave, so without this the void swirls forever after a tap.
+    const release = () => { mouseRef.current = { x: -9999, y: -9999 } }
+    window.addEventListener('pointerup', release, { passive: true })
+    window.addEventListener('pointercancel', release, { passive: true })
+    window.addEventListener('pointerleave', release, { passive: true })
     let rT = 0
     const onResize = () => { window.clearTimeout(rT); rT = window.setTimeout(build, 150) } // debounce (iOS toolbar fires resize repeatedly)
     window.addEventListener('resize', onResize)
@@ -218,6 +257,10 @@ export default function Intro() {
       cancelAnimationFrame(raf)
       io.disconnect()
       window.removeEventListener('pointermove', toLocal)
+      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointerup', release)
+      window.removeEventListener('pointercancel', release)
+      window.removeEventListener('pointerleave', release)
       window.removeEventListener('resize', onResize)
       window.clearTimeout(rT)
     }
@@ -239,7 +282,7 @@ export default function Intro() {
   }, [reduced])
 
   return (
-    <section ref={stageRef} id="intro" style={{ height: reduced ? '100svh' : '240vh', backgroundColor: '#FAF9F7' }}>
+    <section ref={stageRef} id="intro" style={{ height: reduced ? '100svh' : '170vh', backgroundColor: '#F3EDE1' }}>
       <h1 className="sr-only">CakeUWish — Custom Celebration Cakes in Chantilly, VA</h1>
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
         <HoverBloom />

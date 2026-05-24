@@ -1,72 +1,68 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, MessageCircle } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { MessageCircle } from 'lucide-react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { CAKES, CANVAS_H, WHATSAPP_URL, START_INDEX } from '../data/cakes'
+import { CAKES, WHATSAPP_URL, START_INDEX } from '../data/cakes'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
 
 gsap.registerPlugin(ScrollTrigger)
 
-type Role = 'center' | 'left' | 'right' | 'back' | 'hidden'
+const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
+// Viewport fraction of scroll spent gliding from one cake to the next.
+const STEP = 0.45
 
-function roleOf(i: number, active: number, n: number): Role {
-  if (i === active) return 'center'
-  if (i === (active + 1) % n) return 'right'
-  if (i === (active - 1 + n) % n) return 'left'
-  if (i === (active + 2) % n) return 'back'
-  return 'hidden'
+// --- per-cake colour helpers: derive a light + a deeper tone from each cake bg --
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '')
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
 }
-
-interface RoleStyle {
-  left: string
-  bottom: string
-  height: string
-  scale: number
-  blur: string
-  opacity: number
-  z: number
+/** amt > 0 → lighter (toward white); amt < 0 → darker (toward black). */
+function shade(hex: string, amt: number): string {
+  let [r, g, b] = hexToRgb(hex)
+  if (amt >= 0) { r += (255 - r) * amt; g += (255 - g) * amt; b += (255 - b) * amt }
+  else { const k = 1 + amt; r *= k; g *= k; b *= k }
+  const to = (v: number) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')
+  return `#${to(r)}${to(g)}${to(b)}`
 }
+function rgba(hex: string, a: number): string { const [r, g, b] = hexToRgb(hex); return `rgba(${r}, ${g}, ${b}, ${a})` }
 
-function roleStyle(role: Role, m: boolean): RoleStyle {
-  switch (role) {
-    case 'center':
-      return { left: '50%', bottom: m ? '13%' : '4%', height: m ? '54%' : '76%', scale: m ? 1.08 : 1.14, blur: '0px', opacity: 1, z: 30 }
-    case 'left':
-      return { left: m ? '17%' : '25%', bottom: m ? '33%' : '15%', height: m ? '17%' : '30%', scale: 1, blur: '2px', opacity: 0.92, z: 20 }
-    case 'right':
-      return { left: m ? '83%' : '75%', bottom: m ? '33%' : '15%', height: m ? '17%' : '30%', scale: 1, blur: '2px', opacity: 0.92, z: 20 }
-    case 'back':
-      return { left: '50%', bottom: m ? '35%' : '18%', height: m ? '13%' : '23%', scale: 1, blur: '4px', opacity: 0.8, z: 10 }
-    default:
-      return { left: '50%', bottom: '18%', height: '20%', scale: 0.5, blur: '6px', opacity: 0, z: 1 }
-  }
-}
-
+/**
+ * Hero — a scroll-driven cake carousel. The pinned stage holds while you scroll;
+ * progress slides every (whole) cake sideways so the current one glides out and
+ * the next glides into the centre, cycling through all cakes. No exploding into
+ * layers and no prev/next arrows — the scroll itself moves the cakes. Each cake's
+ * background, title and category cross-fade in as it reaches centre.
+ */
 export default function Hero() {
-  const [index, setIndex] = useState(START_INDEX)
+  const reduced = usePrefersReducedMotion()
+  // Display order rotated so the hero opens on START_INDEX ("Simply, Always").
+  const order = useMemo(
+    () => Array.from({ length: CAKES.length }, (_, k) => (START_INDEX + k) % CAKES.length),
+    [],
+  )
+  const [active, setActive] = useState(0) // index INTO `order` of the centred cake
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640)
-  const [assembled, setAssembled] = useState(false)
-  const [navigated, setNavigated] = useState(false)
-  const cake = CAKES[index]
+  const cake = CAKES[order[active]]
 
   const stageRef = useRef<HTMLDivElement>(null)
   const pinRef = useRef<HTMLDivElement>(null)
-  const centerImgsRef = useRef<HTMLImageElement[]>([])
+  const cardsRef = useRef<(HTMLDivElement | null)[]>([])
   const ghostRef = useRef<HTMLDivElement>(null)
   const hintRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef(0)
-  const sepRef = useRef(360)
-  const animatingRef = useRef(false)
-  const assembledRef = useRef(false)
+  const activeRef = useRef(0)
+  const isMobileRef = useRef(isMobile)
   const renderRef = useRef<() => void>(() => {})
-
-  const reduced = usePrefersReducedMotion()
 
   const textMain = cake.dark ? '#FAF9F7' : '#1C1917'
   const textSub = cake.dark ? 'rgba(250,249,247,0.82)' : 'rgba(28,25,23,0.72)'
-  const ghostColor = cake.dark ? 'rgba(250,249,247,0.09)' : 'rgba(161,98,7,0.07)'
+  // Two-tone backdrop matching the cake: a lighter spotlight glow over a deeper base.
+  const bgDark = shade(cake.bg, cake.dark ? -0.35 : -0.16)
+  const bgLight = shade(cake.bg, cake.dark ? 0.32 : 0.22)
+  // Ghost wordmark tint derived from the cake (so it shifts colour per cake).
+  const ghostColor = cake.dark ? rgba(shade(cake.bg, 0.75), 0.1) : rgba(shade(cake.bg, -0.5), 0.11)
 
-  // Preload the starting cake's layers eagerly; the rest during idle time.
+  // Preload the starting cake eagerly; the rest during idle time.
   useEffect(() => {
     CAKES[START_INDEX].layers.forEach((l) => { const img = new Image(); img.src = l.file })
     const ric = (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback
@@ -74,53 +70,58 @@ export default function Hero() {
     ric(() => { CAKES.forEach((c, i) => { if (i !== START_INDEX) c.layers.forEach((l) => { const img = new Image(); img.src = l.file }) }) })
   }, [])
 
-  // Apply the exploded-view transforms (center cake only) from scroll progress.
+  // Place every cake from scroll progress: a continuous coverflow where the cake
+  // at `pos` is centred (sharp, full size) and its neighbours slide to the sides
+  // (smaller, blurred, fading). Styles are set imperatively so React re-renders
+  // (bg / title swaps) never clobber the transforms mid-scroll.
   const render = useCallback(() => {
-    const p = Math.min(Math.max(progressRef.current, 0), 1)
-    // arrives EXPLODED, ASSEMBLES as you scroll (smoothstep over the first ~55%)
-    const a = Math.min(p / 0.55, 1)
-    const factor = 1 - a * a * (3 - 2 * a)
-    const sep = sepRef.current
-    centerImgsRef.current.forEach((el, i) => {
-      const yNorm = Number(el.dataset.yc) / CANVAS_H // 0 (top) .. 1 (bottom)
-      const ty = -(1 - yNorm) * sep * factor // tiers lift upward; board (~1) stays anchored
-      const tx = (i % 2 === 0 ? -1 : 1) * 14 * factor
-      const rot = (i % 2 === 0 ? -1 : 1) * 2.2 * factor
-      const scale = 1 + 0.03 * factor
-      el.style.transform = `translate3d(${tx}px, ${ty}px, 0) rotate(${rot}deg) scale(${scale})`
-      el.style.filter = `drop-shadow(0 ${8 + 22 * factor}px ${14 + 26 * factor}px rgba(28,25,23,${0.12 + 0.18 * factor}))`
-    })
-    if (ghostRef.current) ghostRef.current.style.transform = `translateY(${-64 * factor}px) scale(${1 + 0.06 * factor})`
-    if (hintRef.current) hintRef.current.style.opacity = String(Math.max(0, 1 - p * 8))
-  }, [])
+    const n = order.length
+    const pos = clamp01(progressRef.current) * (n - 1) // 0 → first centred … n-1 → last centred
+    const m = isMobileRef.current
+    const vw = window.innerWidth || 1
+    const spacing = vw * (m ? 0.82 : 0.5) // how far each cake slides per step
+    const cards = cardsRef.current
+    for (let slot = 0; slot < cards.length; slot++) {
+      const el = cards[slot]
+      if (!el) continue
+      const rel = slot - pos // 0 = centred, ± = to the sides
+      const a = Math.abs(rel)
+      const tx = rel * spacing
+      const scale = Math.max(0.5, 1 - a * 0.32)
+      const ty = a * (m ? 10 : 24) // side cakes settle a touch lower
+      const opacity = clamp01(1 - Math.max(0, a - 0.6) / 1.1)
+      el.style.transform = `translate3d(calc(-50% + ${tx}px), ${ty}px, 0) scale(${scale})`
+      el.style.opacity = String(opacity)
+      el.style.filter = a < 0.06 ? 'drop-shadow(0 28px 38px rgba(28,25,23,0.22))' : `blur(${Math.min(a, 1.4) * 2.5}px)`
+      el.style.zIndex = String(100 - Math.round(a * 10))
+      el.style.visibility = opacity <= 0.001 ? 'hidden' : 'visible'
+    }
+    if (ghostRef.current) ghostRef.current.style.transform = `translateX(${-pos * vw * 0.02}px)` // gentle parallax, scaled to viewport so it stays readable on phones
+    if (hintRef.current) hintRef.current.style.opacity = String(clamp01(1 - clamp01(progressRef.current) * 12))
+
+    const act = Math.max(0, Math.min(n - 1, Math.round(pos)))
+    if (act !== activeRef.current) { activeRef.current = act; setActive(act) }
+  }, [order])
 
   useEffect(() => { renderRef.current = render }, [render])
+  // Paint the correct layout BEFORE first paint (no all-cakes-stacked flash).
+  useLayoutEffect(() => { render() }, [render])
 
-  // After each role change / resize: cache the new center's layer imgs, clear
-  // stale transforms from the previous center, recompute separation, re-render.
+  // Track viewport size (lazy-safe), re-place cakes, refresh ScrollTrigger.
   useEffect(() => {
-    const raf = requestAnimationFrame(() => {
-      const root = pinRef.current
-      if (!root) return
-      root.querySelectorAll<HTMLElement>('img[data-yc]').forEach((im) => { im.style.transform = ''; im.style.filter = '' })
-      const center = root.querySelector<HTMLElement>('[data-role="center"]')
-      centerImgsRef.current = center ? Array.from(center.querySelectorAll<HTMLImageElement>('img[data-yc]')) : []
-      const h = center?.getBoundingClientRect().height ?? window.innerHeight * 0.7
-      sepRef.current = h * 0.42
+    const onResize = () => {
+      const m = window.innerWidth < 640
+      isMobileRef.current = m
+      setIsMobile(m)
       renderRef.current()
-    })
-    return () => cancelAnimationFrame(raf)
-  }, [index, isMobile])
-
-  // Track viewport size.
-  useEffect(() => {
-    const onResize = () => { setIsMobile(window.innerWidth < 640); ScrollTrigger.refresh() }
+      ScrollTrigger.refresh()
+    }
     onResize()
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Scroll-driven pin + explode (skipped for reduced motion).
+  // Scroll-driven pin + slide (skipped under reduced motion → static first cake).
   useEffect(() => {
     if (reduced || !stageRef.current || !pinRef.current) return
     const st = ScrollTrigger.create({
@@ -130,40 +131,41 @@ export default function Hero() {
       pin: pinRef.current,
       pinSpacing: true,
       scrub: true,
-      onUpdate: (self) => {
-        progressRef.current = self.progress
-        renderRef.current()
-        const done = self.progress > 0.6
-        if (done !== assembledRef.current) { assembledRef.current = done; setAssembled(done) }
-      },
+      onUpdate: (self) => { progressRef.current = self.progress; renderRef.current() },
       onRefresh: () => renderRef.current(),
     })
     return () => { st.kill() }
   }, [reduced])
 
-  const navigate = useCallback((dir: 1 | -1) => {
-    if (animatingRef.current) return
-    animatingRef.current = true
-    setNavigated(true)
-    setIndex((prev) => (prev + dir + CAKES.length) % CAKES.length)
-    window.setTimeout(() => { animatingRef.current = false }, 650)
-  }, [])
+  const heightVh = Math.round((1 + (order.length - 1) * STEP) * 100)
 
   return (
     <section
       ref={stageRef}
       id="top"
       style={{
-        height: reduced ? '100svh' : '240vh',
-        backgroundColor: cake.bg,
+        height: reduced ? '100svh' : `${heightVh}vh`,
+        backgroundColor: bgDark,
         transition: 'background-color 650ms cubic-bezier(0.25,0.46,0.45,0.94)',
       }}
     >
       <div
         ref={pinRef}
         className="relative w-full overflow-hidden"
-        style={{ height: '100svh', backgroundColor: cake.bg, transition: 'background-color 650ms cubic-bezier(0.25,0.46,0.45,0.94)' }}
+        style={{ height: '100svh', backgroundColor: bgDark, transition: 'background-color 650ms cubic-bezier(0.25,0.46,0.45,0.94)' }}
       >
+        {/* two-tone wash: a lighter spotlight of the cake colour over the deep base */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            backgroundColor: bgLight,
+            transition: 'background-color 650ms cubic-bezier(0.25,0.46,0.45,0.94)',
+            WebkitMaskImage: 'radial-gradient(118% 88% at 50% 40%, #000 0%, rgba(0,0,0,0.34) 56%, transparent 84%)',
+            maskImage: 'radial-gradient(118% 88% at 50% 40%, #000 0%, rgba(0,0,0,0.34) 56%, transparent 84%)',
+            zIndex: 1,
+          }}
+        />
+
         {/* grain */}
         <div className="grain pointer-events-none absolute inset-0" style={{ zIndex: 50 }} />
 
@@ -175,16 +177,16 @@ export default function Hero() {
         >
           <span
             style={{
-              fontSize: 'clamp(86px, 27vw, 380px)',
+              fontSize: 'clamp(34px, 14vw, 220px)',
               fontWeight: 900,
               lineHeight: 1,
-              letterSpacing: '-0.03em',
+              letterSpacing: '-0.02em',
               color: ghostColor,
               textTransform: 'uppercase',
               whiteSpace: 'nowrap',
             }}
           >
-            Wish
+            Cake U Wish
           </span>
         </div>
 
@@ -200,43 +202,35 @@ export default function Hero() {
         {/* index counter */}
         <div className="absolute right-4 top-6 sm:right-8" style={{ zIndex: 60 }}>
           <span aria-hidden="true" className="font-display text-sm" style={{ color: textMain, opacity: 0.85 }}>
-            {String(index + 1).padStart(2, '0')} <span style={{ opacity: 0.5 }}>/ {String(CAKES.length).padStart(2, '0')}</span>
+            {String(active + 1).padStart(2, '0')} <span style={{ opacity: 0.5 }}>/ {String(order.length).padStart(2, '0')}</span>
           </span>
         </div>
-        <div aria-live="polite" aria-atomic="true" className="sr-only">{cake.title}, cake {index + 1} of {CAKES.length}</div>
+        <div aria-live="polite" aria-atomic="true" className="sr-only">{cake.title}, cake {active + 1} of {order.length}</div>
 
-        {/* carousel: every cake placed by role; only the center cake explodes on scroll */}
+        {/* carousel: every cake stays whole; scroll slides them across the stage */}
         <div className="absolute inset-0" style={{ zIndex: 3 }}>
-          {CAKES.map((c, i) => {
-            const role = roleOf(i, index, CAKES.length)
-            const rs = roleStyle(role, isMobile)
-            const isCenter = role === 'center'
+          {order.map((ci, slot) => {
+            const c = CAKES[ci]
             return (
               <div
                 key={c.id}
-                data-role={role}
-                aria-hidden={!isCenter}
+                ref={(el) => { cardsRef.current[slot] = el }}
+                aria-hidden={slot !== active}
                 className="absolute"
                 style={{
-                  left: rs.left,
-                  bottom: rs.bottom,
-                  height: rs.height,
+                  left: '50%',
+                  bottom: isMobile ? '12%' : '5%',
+                  height: isMobile ? '56%' : '80%',
                   aspectRatio: '1024 / 1536',
-                  transform: `translateX(-50%) scale(${rs.scale})`,
                   transformOrigin: 'bottom center',
-                  filter: rs.blur === '0px' ? 'none' : `blur(${rs.blur})`,
-                  opacity: rs.opacity,
-                  zIndex: rs.z,
-                  pointerEvents: 'none',
-                  transition: 'left 650ms cubic-bezier(0.25,0.46,0.45,0.94), bottom 650ms cubic-bezier(0.25,0.46,0.45,0.94), height 650ms cubic-bezier(0.25,0.46,0.45,0.94), transform 650ms cubic-bezier(0.25,0.46,0.45,0.94), filter 650ms cubic-bezier(0.25,0.46,0.45,0.94), opacity 650ms cubic-bezier(0.25,0.46,0.45,0.94)',
                   willChange: 'transform, opacity, filter',
+                  pointerEvents: 'none',
                 }}
               >
                 {c.layers.map((l) => (
                   <picture key={l.file} className="absolute inset-0 h-full w-full">
                     <source srcSet={l.file} type="image/webp" />
                     <img
-                      data-yc={l.yCenter}
                       src={l.filePng}
                       alt=""
                       width={1024}
@@ -244,7 +238,7 @@ export default function Hero() {
                       decoding="async"
                       draggable={false}
                       className="absolute inset-0 h-full w-full"
-                      style={{ objectFit: 'contain', objectPosition: 'bottom center', willChange: isCenter ? 'transform, filter' : undefined }}
+                      style={{ objectFit: 'contain', objectPosition: 'bottom center' }}
                     />
                   </picture>
                 ))}
@@ -253,14 +247,14 @@ export default function Hero() {
           })}
         </div>
 
-        {/* scroll hint */}
+        {/* scroll hint (desktop only — mobile bottom row holds title + CTA) */}
         {!reduced && !isMobile && (
           <div ref={hintRef} className="absolute inset-x-0 flex justify-center" style={{ bottom: '1.5rem', zIndex: 40 }}>
-            <span className="text-xs font-medium uppercase tracking-widest" style={{ color: textSub }}>Scroll to assemble ↓</span>
+            <span className="text-xs font-medium uppercase tracking-widest" style={{ color: textSub }}>Scroll to explore ↓</span>
           </div>
         )}
 
-        {/* bottom-left: title + nav */}
+        {/* bottom-left: title */}
         <div className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] left-4 sm:bottom-16 sm:left-16" style={{ zIndex: 60, maxWidth: 340 }}>
           <span
             className="mb-2 inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase"
@@ -273,26 +267,6 @@ export default function Hero() {
           </h2>
           <p className="mt-2 hidden text-sm sm:block" style={{ color: textSub, lineHeight: 1.6 }}>{cake.blurb}</p>
         </div>
-
-        {/* large side nav arrows */}
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="Previous cake"
-          className={`absolute left-4 top-1/2 z-[60] flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full backdrop-blur-sm transition-[transform,background-color] duration-200 hover:scale-110 sm:left-6 sm:h-[76px] sm:w-[76px] ${assembled && !navigated ? 'nav-highlight' : ''}`}
-          style={{ border: `2px solid ${textMain}`, color: textMain, backgroundColor: cake.dark ? 'rgba(255,255,255,0.12)' : 'rgba(28,25,23,0.05)' }}
-        >
-          <ArrowLeft size={isMobile ? 24 : 32} strokeWidth={2} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate(1)}
-          aria-label="Next cake"
-          className={`absolute right-4 top-1/2 z-[60] flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full backdrop-blur-sm transition-[transform,background-color] duration-200 hover:scale-110 sm:right-6 sm:h-[76px] sm:w-[76px] ${assembled && !navigated ? 'nav-highlight' : ''}`}
-          style={{ border: `2px solid ${textMain}`, color: textMain, backgroundColor: cake.dark ? 'rgba(255,255,255,0.12)' : 'rgba(28,25,23,0.05)' }}
-        >
-          <ArrowRight size={isMobile ? 24 : 32} strokeWidth={2} aria-hidden="true" />
-        </button>
 
         {/* bottom-right: order CTA */}
         <a

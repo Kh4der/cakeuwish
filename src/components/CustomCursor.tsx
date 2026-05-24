@@ -71,8 +71,8 @@ export default function CustomCursor() {
       mode = 'fall'
       for (const l of L) { l.vx = (Math.random() - 0.5) * 11; l.vy = -Math.random() * 6 - 2 }
       window.clearTimeout(fallTO); window.clearTimeout(riseTO)
-      fallTO = window.setTimeout(() => { mode = 'rise' }, 1000)  // settle on floor, then
-      riseTO = window.setTimeout(() => { mode = 'follow' }, 2600) // slow rise back to helix
+      fallTO = window.setTimeout(() => { mode = 'rise' }, 3000)  // rest on the floor ~3s, then
+      riseTO = window.setTimeout(() => { mode = 'follow' }, 6500) // VERY slow rise back to the helix
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('pointerdown', onDown)
@@ -111,7 +111,7 @@ export default function CustomCursor() {
           const s = Math.sin(phase), c = Math.cos(phase)
           const tx = baseX + perpX * s * AMP
           const ty = baseY + perpY * s * AMP
-          const lerp = mode === 'rise' ? 0.055 : 0.2 // slow rise vs responsive follow
+          const lerp = mode === 'rise' ? 0.028 : 0.2 // very slow rise vs responsive follow
           l.x += (tx - l.x) * lerp
           l.y += (ty - l.y) * lerp
           const tsc = 1 + c * 0.28              // front of helix larger

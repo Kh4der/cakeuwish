@@ -40,7 +40,7 @@ export const CAKES: Cake[] = [
     blurb:
       'A golden barnyard brought to life — cow-print tiers, miniature animals, and a red barn topper for a very happy fifth birthday.',
     category: 'Kids & Character',
-    bg: '#F3EAD6',
+    bg: '#EAD6A0',
     panel: '#EBDFC4',
     accent: '#A16207',
     dark: false,
@@ -57,7 +57,7 @@ export const CAKES: Cake[] = [
     blurb:
       'Ballet poise meets music royalty — hot-pink petal ruffles, designer accents, and a silhouette topper that knows exactly who the guest of honour is.',
     category: 'Birthday Cakes',
-    bg: '#F3E4E6',
+    bg: '#F0CBD6',
     panel: '#EAD4D8',
     accent: '#A16207',
     dark: false,
@@ -74,7 +74,7 @@ export const CAKES: Cake[] = [
     blurb:
       'Hand-piped gold lace, velvet-red roses, and lehenga grace as fine as the day they said yes — a golden anniversary deserves nothing less.',
     category: 'Milestone & Anniversary',
-    bg: '#EFE2DD',
+    bg: '#E8CFC4',
     panel: '#E4D2CB',
     accent: '#A16207',
     dark: false,
@@ -110,7 +110,7 @@ export const CAKES: Cake[] = [
     blurb:
       'A lehenga-draped silhouette cascading down ivory tiers, crowned with hand-sculpted bride and groom figurines — a cake that looks like their love story.',
     category: 'Wedding Cakes',
-    bg: '#F3E8D7',
+    bg: '#EDDBB4',
     panel: '#EBDCC2',
     accent: '#A16207',
     dark: false,
@@ -128,7 +128,7 @@ export const CAKES: Cake[] = [
     blurb:
       'Ivory buttercream, hand-ridged tiers, and a cascade of white garden roses — timeless, soft, and exactly right for the couple who lets the moment speak.',
     category: 'Wedding Cakes',
-    bg: '#FAF9F7',
+    bg: '#F3EDE1',
     panel: '#F1EDE8',
     accent: '#A16207',
     dark: false,
@@ -146,7 +146,7 @@ export const CAKES: Cake[] = [
     blurb:
       'A tribute as sharp as dress blues — the Marine Corps emblem, a draped flag tier, and gold rope detailing for someone who earned every star.',
     category: 'Theme & Novelty',
-    bg: '#E6E8EC',
+    bg: '#CBD6E6',
     panel: '#D8DCE2',
     accent: '#44403C',
     dark: false,
