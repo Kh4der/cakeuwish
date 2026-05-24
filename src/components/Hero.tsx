@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { MessageCircle } from 'lucide-react'
-import { gsap } from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { CAKES, WHATSAPP_URL, START_INDEX } from '../data/cakes'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
-
-gsap.registerPlugin(ScrollTrigger)
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
 // Viewport fraction of scroll spent gliding from one cake to the next.
@@ -92,7 +88,9 @@ export default function Hero() {
       const opacity = clamp01(1 - Math.max(0, a - 0.6) / 1.1)
       el.style.transform = `translate3d(calc(-50% + ${tx}px), ${ty}px, 0) scale(${scale})`
       el.style.opacity = String(opacity)
-      el.style.filter = a < 0.06 ? 'drop-shadow(0 28px 38px rgba(28,25,23,0.22))' : `blur(${Math.min(a, 1.4) * 2.5}px)`
+      // Animated blur/drop-shadow per scroll frame is the biggest jank source on
+      // phones — skip filters on mobile (scale + opacity already convey depth).
+      el.style.filter = m ? 'none' : (a < 0.06 ? 'drop-shadow(0 28px 38px rgba(28,25,23,0.22))' : `blur(${Math.min(a, 1.4) * 2.5}px)`)
       el.style.zIndex = String(100 - Math.round(a * 10))
       el.style.visibility = opacity <= 0.001 ? 'hidden' : 'visible'
     }
@@ -107,34 +105,45 @@ export default function Hero() {
   // Paint the correct layout BEFORE first paint (no all-cakes-stacked flash).
   useLayoutEffect(() => { render() }, [render])
 
-  // Track viewport size (lazy-safe), re-place cakes, refresh ScrollTrigger.
+  // Track viewport size (lazy-safe) and re-place cakes.
   useEffect(() => {
     const onResize = () => {
       const m = window.innerWidth < 640
       isMobileRef.current = m
       setIsMobile(m)
       renderRef.current()
-      ScrollTrigger.refresh()
     }
     onResize()
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Scroll-driven pin + slide (skipped under reduced motion → static first cake).
+  // Scroll-driven slide via NATIVE CSS sticky (no GSAP pin — its JS pinning
+  // jitters during momentum scroll on phones; sticky stays buttery). Progress is
+  // driven by Lenis's scroll emit (the same reliable signal GSAP ScrollTrigger
+  // used), with a window-scroll bootstrap until Lenis is ready.
   useEffect(() => {
-    if (reduced || !stageRef.current || !pinRef.current) return
-    const st = ScrollTrigger.create({
-      trigger: stageRef.current,
-      start: 'top top',
-      end: 'bottom bottom',
-      pin: pinRef.current,
-      pinSpacing: true,
-      scrub: true,
-      onUpdate: (self) => { progressRef.current = self.progress; renderRef.current() },
-      onRefresh: () => renderRef.current(),
-    })
-    return () => { st.kill() }
+    if (reduced) return
+    const onScroll = () => {
+      const s = stageRef.current
+      if (!s) return
+      const total = s.offsetHeight - window.innerHeight
+      progressRef.current = total > 0 ? clamp01(-s.getBoundingClientRect().top / total) : 0
+      renderRef.current()
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    type LenisLike = { on: (e: string, cb: () => void) => void; off: (e: string, cb: () => void) => void }
+    let lenis: LenisLike | undefined
+    const id = window.setTimeout(() => {
+      lenis = (window as unknown as { __lenis?: LenisLike }).__lenis
+      if (lenis) { lenis.on('scroll', onScroll); window.removeEventListener('scroll', onScroll) }
+    }, 0)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener('scroll', onScroll)
+      lenis?.off('scroll', onScroll)
+    }
   }, [reduced])
 
   const heightVh = Math.round((1 + (order.length - 1) * STEP) * 100)
@@ -151,7 +160,7 @@ export default function Hero() {
     >
       <div
         ref={pinRef}
-        className="relative w-full overflow-hidden"
+        className="sticky top-0 w-full overflow-hidden"
         style={{ height: '100svh', backgroundColor: bgDark, transition: 'background-color 650ms cubic-bezier(0.25,0.46,0.45,0.94)' }}
       >
         {/* two-tone wash: a lighter spotlight of the cake colour over the deep base */}

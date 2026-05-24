@@ -31,7 +31,7 @@ export default function Intro() {
     if (!canvas || !stage) return
     const w = stage.clientWidth || window.innerWidth
     const h = window.innerHeight
-    const dpr = Math.min(window.devicePixelRatio || 1, w < 768 ? 1.5 : 2) // lower DPR on phones to cut canvas memory
+    const dpr = Math.min(window.devicePixelRatio || 1, w < 768 ? 1.25 : 2) // lower DPR on phones to cut per-frame fill cost
     sizeRef.current = { w, h, dpr }
     canvas.width = Math.round(w * dpr)
     canvas.height = Math.round(h * dpr)
@@ -193,9 +193,11 @@ export default function Intro() {
         pt.vx *= FRICTION; pt.vy *= FRICTION
         pt.x += pt.vx; pt.y += pt.vy
 
-        // render: streak when moving fast, crisp dot at rest
+        // render: streak when moving fast, crisp dot at rest.
+        // Streaks (per-particle stroke) are costlier than fillRect — desktop only;
+        // phones always draw dots so interaction stays smooth.
         const sp2 = pt.vx * pt.vx + pt.vy * pt.vy
-        if (sp2 > 1.1) {
+        if (sp2 > 1.1 && w >= 768) {
           let tx = pt.vx * STREAK, ty = pt.vy * STREAK
           const tl = Math.hypot(tx, ty)
           if (tl > MAXSTREAK) { const s = MAXSTREAK / tl; tx *= s; ty *= s }

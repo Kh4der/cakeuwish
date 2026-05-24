@@ -79,7 +79,7 @@ export default function HoverBloom() {
       const r = canvas.getBoundingClientRect()
       w = r.width || window.innerWidth
       h = r.height || window.innerHeight
-      dpr = Math.min(window.devicePixelRatio || 1, w < 768 ? 1.25 : 1.5)
+      dpr = Math.min(window.devicePixelRatio || 1, w < 768 ? 1 : 1.5)
       canvas.width = Math.round(w * dpr)
       canvas.height = Math.round(h * dpr)
       garden.width = canvas.width
@@ -90,6 +90,7 @@ export default function HoverBloom() {
     // a small reusable pool of flower sprites (a big garden stays cheap)
     const POOL = Array.from({ length: 12 }, () => makeFlowerSprite(300)) // smaller sprites → much less canvas memory on mobile
     const active: Bloom[] = []   // blooms still growing; once grown they're stamped into the garden
+    let needsRedraw = false      // when false + no active blooms, the canvas is static → skip the per-frame redraw
     const SPAWN_DIST = 86
     let lastX = -999, lastY = -999
     let scrollFade = 1 // 1 on the start screen, fades to 0 as you scroll down to the hero
@@ -103,6 +104,7 @@ export default function HoverBloom() {
         lean: sign * (0.14 + Math.random() * 0.13), // guaranteed bend -> curved stem (never a straight line)
         sprite: POOL[(Math.random() * POOL.length) | 0],
       })
+      needsRedraw = true
     }
 
     const local = (clientX: number, clientY: number) => {
@@ -163,13 +165,18 @@ export default function HoverBloom() {
       if (scrollFade <= 0.001) { raf = requestAnimationFrame(draw); return } // skip drawing once scrolled away from the start screen
       const now = performance.now()
       // stamp finished blooms permanently into the garden, then drop them from the active list
+      let stamped = false
       for (let i = active.length - 1; i >= 0; i--) {
         if (now - active[i].born >= GROW_MS) {
           gctx.setTransform(dpr, 0, 0, dpr, 0, 0)
           paintBloom(gctx, active[i], 1, 1)
           active.splice(i, 1)
+          stamped = true
         }
       }
+      // idle (no flowers growing, nothing pending): the canvas already shows the
+      // garden — skip the full-screen redraw so the start page costs ~nothing at rest
+      if (active.length === 0 && !needsRedraw && !stamped) { raf = requestAnimationFrame(draw); return }
       // render: the persistent garden, then the actively growing blooms on top
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -183,6 +190,7 @@ export default function HoverBloom() {
         const grow = ease(Math.min(1, Math.max(0, (el - 320) / 900)))   // then the flower blooms
         paintBloom(ctx, b, stemGrow, grow)
       }
+      if (active.length === 0) needsRedraw = false // drew the final state → go idle until the next bloom
       raf = requestAnimationFrame(draw)
     }
     raf = requestAnimationFrame(draw)
