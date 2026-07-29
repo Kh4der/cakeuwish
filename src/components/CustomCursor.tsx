@@ -76,6 +76,12 @@ export default function CustomCursor() {
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('pointerdown', onDown)
+    // Hybrid touch+trackpad devices: a tap would strand the trail over content
+    // — hide it on touch, let the next real mouse move bring it back.
+    const onTouch = () => {
+      if (wrapRef.current) wrapRef.current.style.opacity = '0'
+    }
+    window.addEventListener('touchstart', onTouch, { passive: true })
 
     let raf = 0
     const tick = (now: number) => {
@@ -134,6 +140,7 @@ export default function CustomCursor() {
       cancelAnimationFrame(raf)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('touchstart', onTouch)
       window.clearTimeout(fallTO); window.clearTimeout(riseTO)
       if (magRef.current) magRef.current.style.transform = ''
     }

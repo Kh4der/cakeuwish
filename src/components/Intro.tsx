@@ -31,6 +31,7 @@ export default function Intro() {
     if (!canvas || !stage) return
     const w = stage.clientWidth || window.innerWidth
     const h = window.innerHeight
+    if (w < 10 || h < 10) return // zero-sized viewport (hidden tab / pre-render) — getImageData would throw; resize rebuilds
     const dpr = Math.min(window.devicePixelRatio || 1, w < 768 ? 1.25 : 2) // lower DPR on phones to cut per-frame fill cost
     sizeRef.current = { w, h, dpr }
     canvas.width = Math.round(w * dpr)

@@ -20,5 +20,19 @@ export const REVIEWS: Review[] = [
   { name: 'bheem lal', rating: 5, text: 'Best cake ever we had. Thank you so much, Parul!' },
 ]
 
-export const GOOGLE_REVIEWS_URL =
-  'https://www.google.com/search?q=CakeUWish+LLC+Chantilly+reviews'
+// Review-platform settings live in ONE place now — src/config/site.ts.
+// These re-exports keep every existing import working.
+import { REVIEWS_CONFIG } from '../config/site'
+
+export const GOOGLE_REVIEWS_URL = REVIEWS_CONFIG.googleReviewsUrl
+export const REVIEW_RATING = REVIEWS_CONFIG.rating
+export const REVIEW_COUNT = REVIEWS_CONFIG.count
+
+export const SOCIABLEKIT_EMBED_ID = REVIEWS_CONFIG.sociableKitEmbedId
+export const GOOGLE_PLACE_ID: string = REVIEWS_CONFIG.googlePlaceId
+
+export function writeReviewUrl(): string {
+  return GOOGLE_PLACE_ID
+    ? `https://search.google.com/local/writereview?placeid=${GOOGLE_PLACE_ID}`
+    : GOOGLE_REVIEWS_URL
+}

@@ -1,39 +1,20 @@
-export interface CakeLayer {
-  /** optimized webp path */
-  file: string
-  /** png fallback path */
-  filePng: string
-  label: string
-  /** vertical center of the layer band on the original 1536px-tall canvas */
-  yCenter: number
-}
+import type { CakeContent } from '../content/types'
 
-export interface Cake {
-  id: string
-  title: string
-  blurb: string
-  category: string
-  /** dynamic hero background tint */
-  bg: string
-  /** secondary panel tint */
-  panel: string
-  /** brand accent sampled from the cake */
-  accent: string
-  /** true when bg is dark and needs light text */
-  dark: boolean
-  layers: CakeLayer[]
-}
+// Bundled SEED content. This is what the site shows out of the box and the
+// fallback whenever Supabase isn't configured / returns nothing. Once Supabase
+// is seeded (see supabase/migrations), the live content overrides this at runtime.
+//
+// Each cake renders from a single transparent `full.webp` (the hero used to
+// stack per-cake layer slices for an explode effect that HERO v2 dropped — the
+// stacked slices simply reconstructed this same full image).
 
-/** Canvas height the layer geometry was authored against. */
-export const CANVAS_H = 1536
-export const CANVAS_W = 1024
+const img = (id: string) => `/cakes/${id}/full.webp`
 
-const base = (id: string) => `/cakes/${id}`
+// flavor/servings stay empty in the seed (the UI shows "any flavor from the
+// menu" style fallbacks); the admin panel fills real values per cake.
+type Seed = Omit<CakeContent, 'image' | 'sortOrder' | 'visible' | 'flavor' | 'servings' | 'extraImages'>
 
-// Premium / Elegant palette: soft desaturated backdrops (gentle per-cake mood,
-// all reading elegant), gold accents throughout, with Midnight Geode kept as the
-// one dramatic charcoal moment. Simply, Always (START) is off-white to sync with Intro.
-export const CAKES: Cake[] = [
+const SEED: Seed[] = [
   {
     id: '5d2ec516-28dc-4e17-8801-5391e8a2f0c8',
     title: 'Farm Day, Reyaan',
@@ -44,12 +25,7 @@ export const CAKES: Cake[] = [
     panel: '#EBDFC4',
     accent: '#A16207',
     dark: false,
-    layers: [
-      { file: '00-topper.png', label: 'topper', yCenter: 170 },
-      { file: '01-tier-top.png', label: 'tier-top', yCenter: 580 },
-      { file: '02-tier-bot.png', label: 'tier-bot', yCenter: 1085 },
-      { file: '03-board.png', label: 'board', yCenter: 1443 },
-    ],
+    tags: ['kids birthday', 'farm animals', 'barnyard', '5th birthday'],
   },
   {
     id: '25e166a0-4076-4378-91d2-fd62b1890e46',
@@ -61,12 +37,7 @@ export const CAKES: Cake[] = [
     panel: '#EAD4D8',
     accent: '#A16207',
     dark: false,
-    layers: [
-      { file: '00-topper.png', label: 'topper', yCenter: 140 },
-      { file: '01-tier-top.png', label: 'tier-top', yCenter: 550 },
-      { file: '02-tier-bot.png', label: 'tier-bot', yCenter: 1100 },
-      { file: '03-board.png', label: 'board', yCenter: 1458 },
-    ],
+    tags: ['birthday', 'ballet', 'pink ruffles', 'designer'],
   },
   {
     id: 'a99e9e06-dbb2-4bde-8d13-f33521d03dfb',
@@ -78,13 +49,7 @@ export const CAKES: Cake[] = [
     panel: '#E4D2CB',
     accent: '#A16207',
     dark: false,
-    layers: [
-      { file: '00-topper.png', label: 'topper', yCenter: 125 },
-      { file: '01-tier-top.png', label: 'tier-top', yCenter: 425 },
-      { file: '02-tier-mid.png', label: 'tier-mid', yCenter: 780 },
-      { file: '03-tier-bot.png', label: 'tier-bot', yCenter: 1115 },
-      { file: '04-board.png', label: 'board', yCenter: 1403 },
-    ],
+    tags: ['50th anniversary', 'gold lace', 'roses', 'indian'],
   },
   {
     id: 'ba90402b-d98e-4f7d-ab25-53200a10595b',
@@ -96,13 +61,7 @@ export const CAKES: Cake[] = [
     panel: '#2A2522',
     accent: '#CE8066',
     dark: true,
-    layers: [
-      { file: '00-topper.png', label: 'topper', yCenter: 130 },
-      { file: '01-tier-top.png', label: 'tier-top', yCenter: 455 },
-      { file: '02-tier-mid.png', label: 'tier-mid', yCenter: 865 },
-      { file: '03-tier-bot.png', label: 'tier-bot', yCenter: 1240 },
-      { file: '04-board.png', label: 'board', yCenter: 1468 },
-    ],
+    tags: ['milestone birthday', 'geode', 'black fondant', 'rose gold'],
   },
   {
     id: 'e135e65c-bac5-40fa-9acd-1dd74cc189ca',
@@ -114,13 +73,7 @@ export const CAKES: Cake[] = [
     panel: '#EBDCC2',
     accent: '#A16207',
     dark: false,
-    layers: [
-      { file: '00-topper.png', label: 'topper', yCenter: 150 },
-      { file: '01-tier-top.png', label: 'tier-top', yCenter: 500 },
-      { file: '02-tier-mid.png', label: 'tier-mid', yCenter: 915 },
-      { file: '03-tier-bot.png', label: 'tier-bot', yCenter: 1275 },
-      { file: '04-board.png', label: 'board', yCenter: 1478 },
-    ],
+    tags: ['wedding', 'indian wedding', 'lehenga', 'figurines'],
   },
   {
     id: '6a8115e3-88ee-4506-bda0-a6f4e7ec579c',
@@ -132,13 +85,7 @@ export const CAKES: Cake[] = [
     panel: '#F1EDE8',
     accent: '#A16207',
     dark: false,
-    layers: [
-      { file: '00-topper.png', label: 'topper', yCenter: 65 },
-      { file: '01-tier-top.png', label: 'tier-top', yCenter: 385 },
-      { file: '02-tier-mid.png', label: 'tier-mid', yCenter: 885 },
-      { file: '03-tier-bot.png', label: 'tier-bot', yCenter: 1265 },
-      { file: '04-board.png', label: 'board', yCenter: 1468 },
-    ],
+    tags: ['wedding', 'buttercream', 'garden roses', 'classic'],
   },
   {
     id: '8bf75c40-ca3c-4686-8f3c-70ff4bf73a6c',
@@ -150,24 +97,25 @@ export const CAKES: Cake[] = [
     panel: '#D8DCE2',
     accent: '#44403C',
     dark: false,
-    layers: [
-      { file: '00-topper.png', label: 'topper', yCenter: 160 },
-      { file: '01-tier-top.png', label: 'tier-top', yCenter: 565 },
-      { file: '02-tier-bot.png', label: 'tier-bot', yCenter: 1085 },
-      { file: '03-board.png', label: 'board', yCenter: 1448 },
-    ],
+    tags: ['military', 'marine corps', 'retirement', 'tribute'],
   },
-].map((c) => ({
+]
+
+export const SEED_CAKES: CakeContent[] = SEED.map((c, i) => ({
   ...c,
-  layers: c.layers.map((l) => ({
-    ...l,
-    file: `${base(c.id)}/${l.file.replace('.png', '.webp')}`,
-    filePng: `${base(c.id)}/${l.file}`,
-  })),
+  image: img(c.id),
+  sortOrder: i,
+  visible: true,
+  flavor: '',
+  servings: '',
+  extraImages: [],
 }))
 
-// The hero opens on "Simply, Always" (the white-rose wedding cake).
-export const START_INDEX = Math.max(0, CAKES.findIndex((c) => c.id === '6a8115e3-88ee-4506-bda0-a6f4e7ec579c'))
+/** Backwards-friendly alias used by a few callers. */
+export const CAKES = SEED_CAKES
+
+/** The hero opens on this cake ("Simply, Always"); falls back to the first cake. */
+export const START_ID = '6a8115e3-88ee-4506-bda0-a6f4e7ec579c'
 
 export const CATEGORIES = [
   'Birthday Cakes',
@@ -179,6 +127,12 @@ export const CATEGORIES = [
   'Bespoke & Custom',
 ]
 
-export const WHATSAPP_URL = 'https://wa.me/15717625848'
-export const WHATSAPP_DISPLAY = '+1 (571) 762-5848'
-export const FACEBOOK_URL = 'https://facebook.com/CakeUWishVA'
+// Contact/channel settings live in ONE place now — src/config/site.ts.
+// These re-exports keep every existing import working.
+import { CHANNELS, PHONE_TEL as TEL, WHATSAPP_URL as WA } from '../config/site'
+
+export const WHATSAPP_URL = WA
+export const WHATSAPP_DISPLAY = CHANNELS.phoneDisplay
+export const PHONE_TEL = TEL
+export const FACEBOOK_URL = CHANNELS.facebookUrl
+export const WHATSAPP_ENABLED = CHANNELS.whatsappEnabled

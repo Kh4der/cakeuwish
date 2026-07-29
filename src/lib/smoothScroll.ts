@@ -37,6 +37,13 @@ export function useSmoothScroll() {
   }, [])
 }
 
+/** Jump to the top of the page instantly (used on route changes). */
+export function scrollToTop() {
+  const lenis = (window as WinWithLenis).__lenis
+  if (lenis) lenis.scrollTo(0, { immediate: true })
+  window.scrollTo(0, 0)
+}
+
 /** Smoothly scroll to an element id, accounting for the sticky header. */
 export function scrollToId(id: string) {
   const el = document.getElementById(id)

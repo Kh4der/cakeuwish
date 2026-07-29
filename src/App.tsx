@@ -1,41 +1,41 @@
-import Header from './components/Header'
-import Intro from './components/Intro'
-import Hero from './components/Hero'
-import Gallery from './components/Gallery'
-import ScatterGallery from './components/ScatterGallery'
-import Categories from './components/Categories'
-import Reviews from './components/Reviews'
-import Contact from './components/Contact'
-import Footer from './components/Footer'
-import WhatsAppFab from './components/WhatsAppFab'
-import CustomCursor from './components/CustomCursor'
-import { useSmoothScroll } from './lib/smoothScroll'
-import { useScrollReveal } from './lib/useScrollReveal'
+import { lazy } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import Layout from './components/Layout'
+import HomePage from './pages/HomePage'
+
+// The home page stays in the entry chunk (first paint); everything else is a
+// lazy route chunk so the one-pager's performance budget is untouched.
+const GalleryPage = lazy(() => import('./pages/GalleryPage'))
+const CakeBuilderPage = lazy(() => import('./pages/CakeBuilderPage'))
+const CakeDetailPage = lazy(() => import('./pages/CakeDetailPage'))
+const OrderPage = lazy(() => import('./pages/OrderPage'))
+const PricingPage = lazy(() => import('./pages/PricingPage'))
+const FaqPage = lazy(() => import('./pages/FaqPage'))
+const ContactPage = lazy(() => import('./pages/ContactPage'))
+const ReviewsPage = lazy(() => import('./pages/ReviewsPage'))
+const TermsPage = lazy(() => import('./pages/TermsPage'))
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 export default function App() {
-  useSmoothScroll()
-  useScrollReveal()
   return (
-    <>
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-on-primary focus:shadow-lg"
-      >
-        Skip to content
-      </a>
-      <Header />
-      <main id="main-content">
-        <Intro />
-        <Hero />
-        <Gallery />
-        <ScatterGallery />
-        <Categories />
-        <Reviews />
-        <Contact />
-      </main>
-      <Footer />
-      <WhatsAppFab />
-      <CustomCursor />
-    </>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="gallery" element={<GalleryPage />} />
+          <Route path="builder" element={<CakeBuilderPage />} />
+          <Route path="cakes/:id" element={<CakeDetailPage />} />
+          <Route path="order" element={<OrderPage />} />
+          <Route path="pricing" element={<PricingPage />} />
+          <Route path="faq" element={<FaqPage />} />
+          <Route path="contact" element={<ContactPage />} />
+          <Route path="reviews" element={<ReviewsPage />} />
+          <Route path="terms" element={<TermsPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }

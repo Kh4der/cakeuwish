@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
-import { CAKES, WHATSAPP_URL, START_INDEX } from '../data/cakes'
+import { WHATSAPP_ENABLED, WHATSAPP_URL, START_ID } from '../data/cakes'
+import { useContent } from '../content/ContentProvider'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
@@ -31,14 +33,17 @@ function rgba(hex: string, a: number): string { const [r, g, b] = hexToRgb(hex);
  */
 export default function Hero() {
   const reduced = usePrefersReducedMotion()
-  // Display order rotated so the hero opens on START_INDEX ("Simply, Always").
+  const { cakes } = useContent()
+  // The hero opens on START_ID ("Simply, Always"); falls back to the first cake.
+  const startIndex = useMemo(() => Math.max(0, cakes.findIndex((c) => c.id === START_ID)), [cakes])
+  // Display order rotated so the hero opens on the start cake, then cycles.
   const order = useMemo(
-    () => Array.from({ length: CAKES.length }, (_, k) => (START_INDEX + k) % CAKES.length),
-    [],
+    () => Array.from({ length: cakes.length }, (_, k) => (startIndex + k) % cakes.length),
+    [cakes.length, startIndex],
   )
   const [active, setActive] = useState(0) // index INTO `order` of the centred cake
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640)
-  const cake = CAKES[order[active]]
+  const cake = cakes[order[Math.min(active, order.length - 1)]] ?? cakes[0]
 
   const stageRef = useRef<HTMLDivElement>(null)
   const pinRef = useRef<HTMLDivElement>(null)
@@ -60,11 +65,12 @@ export default function Hero() {
 
   // Preload the starting cake eagerly; the rest during idle time.
   useEffect(() => {
-    CAKES[START_INDEX].layers.forEach((l) => { const img = new Image(); img.src = l.file })
+    const pre = (src: string) => { const img = new Image(); img.src = src }
+    if (cakes[startIndex]) pre(cakes[startIndex].image)
     const ric = (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback
       ?? ((cb: () => void) => window.setTimeout(cb, 300))
-    ric(() => { CAKES.forEach((c, i) => { if (i !== START_INDEX) c.layers.forEach((l) => { const img = new Image(); img.src = l.file }) }) })
-  }, [])
+    ric(() => { cakes.forEach((c, i) => { if (i !== startIndex) pre(c.image) }) })
+  }, [cakes, startIndex])
 
   // Place every cake from scroll progress: a continuous coverflow where the cake
   // at `pos` is centred (sharp, full size) and its neighbours slide to the sides
@@ -224,7 +230,8 @@ export default function Hero() {
         {/* carousel: every cake stays whole; scroll slides them across the stage */}
         <div className="absolute inset-0" style={{ zIndex: 3 }}>
           {order.map((ci, slot) => {
-            const c = CAKES[ci]
+            const c = cakes[ci]
+            if (!c) return null
             return (
               <div
                 key={c.id}
@@ -241,21 +248,16 @@ export default function Hero() {
                   pointerEvents: 'none',
                 }}
               >
-                {c.layers.map((l) => (
-                  <picture key={l.file} className="absolute inset-0 h-full w-full">
-                    <source srcSet={l.file} type="image/webp" />
-                    <img
-                      src={l.filePng}
-                      alt=""
-                      width={1024}
-                      height={1536}
-                      decoding="async"
-                      draggable={false}
-                      className="absolute inset-0 h-full w-full"
-                      style={{ objectFit: 'contain', objectPosition: 'bottom center' }}
-                    />
-                  </picture>
-                ))}
+                <img
+                  src={c.image}
+                  alt=""
+                  width={1024}
+                  height={1536}
+                  decoding="async"
+                  draggable={false}
+                  className="absolute inset-0 h-full w-full"
+                  style={{ objectFit: 'contain', objectPosition: 'bottom center' }}
+                />
               </div>
             )
           })}
@@ -283,6 +285,17 @@ export default function Hero() {
         </div>
 
         {/* bottom-right: order CTA */}
+        {!WHATSAPP_ENABLED ? (
+          <Link
+            to={`/order?cake=${cake.id}#request`}
+            aria-label={`Request a quote for ${cake.title}`}
+            data-magnetic
+            className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] right-4 flex min-h-[44px] items-center gap-2 rounded-full px-5 py-2.5 transition-transform duration-300 sm:bottom-16 sm:right-12"
+            style={{ zIndex: 60, color: cake.dark ? '#1C1917' : '#FAF9F7', backgroundColor: cake.dark ? '#FAF9F7' : '#1C1917' }}
+          >
+            <span className="font-display uppercase" style={{ fontSize: 'clamp(15px, 2vw, 22px)', fontWeight: 700, letterSpacing: '0.01em' }}>Order Now</span>
+          </Link>
+        ) : (
         <a
           href={WHATSAPP_URL}
           target="_blank"
@@ -290,12 +303,14 @@ export default function Hero() {
           aria-label="Order on WhatsApp"
           data-magnetic
           data-cursor-label="Order"
+          data-loc="hero"
           className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] right-4 flex min-h-[44px] items-center gap-2 rounded-full px-5 py-2.5 transition-transform duration-300 sm:bottom-16 sm:right-12"
           style={{ zIndex: 60, color: cake.dark ? '#1C1917' : '#FAF9F7', backgroundColor: cake.dark ? '#FAF9F7' : '#1C1917' }}
         >
           <MessageCircle size={isMobile ? 18 : 22} strokeWidth={2.25} aria-hidden="true" />
           <span className="font-display uppercase" style={{ fontSize: 'clamp(15px, 2vw, 22px)', fontWeight: 700, letterSpacing: '0.01em' }}>Order Now</span>
         </a>
+        )}
       </div>
     </section>
   )

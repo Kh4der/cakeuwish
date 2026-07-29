@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/social.ts": { "maxDuration": 60 },
+    "api/generate-cake.ts": { "maxDuration": 60 },
+    "api/chatwoot-bot.ts": { "maxDuration": 60 }
+  }
+}
