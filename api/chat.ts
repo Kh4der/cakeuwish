@@ -136,16 +136,23 @@ function rateLimited(ip: string, now: number): boolean {
 const CHAT_IN_RATE = 1 / 1_000_000
 const CHAT_OUT_RATE = 5 / 1_000_000
 
-/** Fire-and-forget cost metering into usage_log (shown in Admin → Vendors & bills). */
+/** Fire-and-forget cost metering into usage_log (Admin → Insights → API costs). */
 function logUsage(inputTokens: number, outputTokens: number, free: boolean): void {
   const url = process.env.VITE_SUPABASE_URL
   const anon = process.env.VITE_SUPABASE_ANON_KEY
   if (!url || !anon) return
-  const est = free ? 0 : Math.min(1, inputTokens * CHAT_IN_RATE + outputTokens * CHAT_OUT_RATE)
+  const est = free ? 0 : Math.min(100, inputTokens * CHAT_IN_RATE + outputTokens * CHAT_OUT_RATE)
   fetch(`${url}/rest/v1/usage_log`, {
     method: 'POST',
     headers: { apikey: anon, Authorization: `Bearer ${anon}`, 'content-type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ service: 'chat', input_tokens: inputTokens, output_tokens: outputTokens, est_cost: est }),
+    body: JSON.stringify({
+      service: 'chat',
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      est_cost: est,
+      provider: free ? new URL(LLM_BASE_URL as string).hostname.replace(/^api\./, '') : 'anthropic',
+      detail: free ? `${LLM_MODEL} reply` : 'claude-haiku reply',
+    }),
   }).catch(() => {})
 }
 

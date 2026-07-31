@@ -620,6 +620,30 @@ grant select (facebook_page_name, instagram_handle, whatsapp_channel_url)
 notify pgrst, 'reload schema';
 
 
+-- ═══ 0013_api_costs.sql ═══
+-- Itemized API spend. 0009 only metered 'chat' and 'image'; every other paid
+-- service (X posts, Vapi calls, Resend emails, receipt vision) was invisible.
+
+alter table public.usage_log drop constraint if exists usage_log_service_check;
+alter table public.usage_log
+  add constraint usage_log_service_check
+  check (service in ('chat', 'image', 'social', 'voice', 'email', 'receipt'));
+
+alter table public.usage_log add column if not exists detail text not null default '';
+alter table public.usage_log add column if not exists quantity int not null default 1
+  check (quantity between 0 and 10000);
+alter table public.usage_log add column if not exists provider text not null default '';
+
+create index if not exists usage_log_happened_idx on public.usage_log (happened_at desc);
+create index if not exists usage_log_service_idx  on public.usage_log (service);
+
+alter table public.usage_log drop constraint if exists usage_log_est_cost_check;
+alter table public.usage_log
+  add constraint usage_log_est_cost_check check (est_cost between 0 and 100);
+
+notify pgrst, 'reload schema';
+
+
 -- ═══ email-notification webhook (OPTIONAL — needs /api/notify deployed) ═══
 -- Uncomment, replace <YOUR-DOMAIN> and <YOUR-NOTIFY-WEBHOOK-SECRET> (must
 -- equal the NOTIFY_WEBHOOK_SECRET env var on Vercel), then run:

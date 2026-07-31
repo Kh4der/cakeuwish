@@ -107,6 +107,33 @@ const fail = (e: unknown): Patch => ({
   error: (e instanceof Error ? e.message : String(e)).slice(0, 500),
 })
 
+// X bills per request since Feb 2026: a plain post is ~$0.015, but a post whose
+// text contains a URL is charged at the much higher link rate. Meta publishing
+// is free. Estimates only — the provider's invoice is the source of truth.
+const X_POST_COST = 0.015
+const X_LINK_POST_COST = 0.2
+
+/** Fire-and-forget cost metering into usage_log (Admin → Insights → API costs). */
+function logUsage(provider: string, detail: string, cost: number): void {
+  if (!SB_URL || !SB_ANON) return
+  fetch(`${SB_URL}/rest/v1/usage_log`, {
+    method: 'POST',
+    headers: {
+      apikey: SB_ANON,
+      Authorization: `Bearer ${SB_ANON}`,
+      'content-type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      service: 'social',
+      quantity: 1,
+      est_cost: Math.min(100, cost),
+      provider,
+      detail: detail.slice(0, 200),
+    }),
+  }).catch(() => {})
+}
+
 // ── OAuth 1.0a (same signer as api/twitter.ts; api/* cannot import from src) ─
 const enc = (s: string) =>
   encodeURIComponent(s).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`)
@@ -240,6 +267,8 @@ async function xTweet(post: PostRow, mediaId: string): Promise<Patch> {
   if (mediaId) payload.media = { media_ids: [mediaId] }
   const json = await xJson(await xFetch('POST', 'https://api.x.com/2/tweets', {}, payload), 'post')
   const id = String((json.data as { id?: string } | undefined)?.id ?? '')
+  const hasLink = /https?:\/\//.test(post.caption)
+  logUsage('x', hasLink ? 'Post with link (link rate)' : 'Post', hasLink ? X_LINK_POST_COST : X_POST_COST)
   return {
     status: 'posted',
     remote_id: id,
@@ -349,6 +378,7 @@ async function stepFacebook(post: PostRow, t: TargetRow): Promise<Patch> {
   // `caption` — NOT `message`, which is deprecated on the /photos edge.
   const json = await graph(`${GRAPH}/${FB_PAGE_ID}/photos`, { url: src, caption: post.caption }, token)
   const postId = String(json.post_id ?? json.id ?? '')
+  logUsage('facebook', 'Page photo post', 0) // Meta publishing is free
   return {
     status: 'posted',
     remote_id: postId,
@@ -374,6 +404,7 @@ async function stepInstagram(post: PostRow, t: TargetRow): Promise<Patch> {
     }
     const pub = await graph(`${base}/media_publish`, { creation_id: t.upload_ref }, token)
     const mediaId = String(pub.id ?? '')
+    logUsage('instagram', post.media_type === 'video' ? 'Reel' : 'Photo post', 0) // free
     let link = ''
     try {
       const meta = await graph(`${IG_GRAPH}/${mediaId}`, { fields: 'permalink' }, token, 'GET')

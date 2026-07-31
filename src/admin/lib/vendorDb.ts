@@ -106,25 +106,85 @@ export async function sessionToken(): Promise<string> {
   return data.session?.access_token ?? ''
 }
 
-// ---- API usage costs (usage_log — written by the chat/image endpoints) ----
+// ---- API usage costs (usage_log — written by every metered endpoint) ----
+
+export type UsageService = 'chat' | 'image' | 'social' | 'voice' | 'email' | 'receipt'
+
+export const USAGE_SERVICES: UsageService[] = ['chat', 'image', 'social', 'voice', 'email', 'receipt']
+
+/** Human labels for the itemized report. */
+export const USAGE_LABEL: Record<UsageService, string> = {
+  chat: 'AI chat',
+  image: 'Cake builder images',
+  social: 'Social posting',
+  voice: 'Phone calls',
+  email: 'Emails',
+  receipt: 'Receipt reading',
+}
 
 export interface UsageRow {
   happenedAt: string
-  service: 'chat' | 'image'
+  service: UsageService
   estCost: number
+  detail: string
+  provider: string
+  quantity: number
+  inputTokens: number
+  outputTokens: number
 }
+
+const asService = (v: unknown): UsageService =>
+  USAGE_SERVICES.includes(v as UsageService) ? (v as UsageService) : 'chat'
 
 export async function listUsageSince(sinceIso: string): Promise<UsageRow[]> {
   const { data, error } = await sb()
     .from('usage_log')
-    .select('happened_at,service,est_cost')
+    .select('happened_at,service,est_cost,detail,provider,quantity,input_tokens,output_tokens')
     .gte('happened_at', sinceIso)
     .order('happened_at', { ascending: false })
     .limit(5000)
   if (error) throw error
   return (data ?? []).map((r: Record<string, unknown>) => ({
     happenedAt: (r.happened_at as string) ?? '',
-    service: r.service === 'image' ? 'image' : 'chat',
+    service: asService(r.service),
     estCost: Number(r.est_cost) || 0,
+    detail: (r.detail as string) ?? '',
+    provider: (r.provider as string) ?? '',
+    quantity: Number(r.quantity) || 1,
+    inputTokens: Number(r.input_tokens) || 0,
+    outputTokens: Number(r.output_tokens) || 0,
   }))
+}
+
+export interface ServiceTotal {
+  service: UsageService
+  label: string
+  provider: string
+  calls: number
+  quantity: number
+  cost: number
+}
+
+/** Group raw rows into the per-service lines the report renders. */
+export function summarizeUsage(rows: UsageRow[]): ServiceTotal[] {
+  const map = new Map<string, ServiceTotal>()
+  for (const r of rows) {
+    const key = `${r.service}|${r.provider}`
+    const cur = map.get(key)
+    if (cur) {
+      cur.calls += 1
+      cur.quantity += r.quantity
+      cur.cost += r.estCost
+    } else {
+      map.set(key, {
+        service: r.service,
+        label: USAGE_LABEL[r.service],
+        provider: r.provider,
+        calls: 1,
+        quantity: r.quantity,
+        cost: r.estCost,
+      })
+    }
+  }
+  return [...map.values()].sort((a, b) => b.cost - a.cost || b.calls - a.calls)
 }

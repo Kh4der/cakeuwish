@@ -34,6 +34,25 @@ interface InquiryRecord {
 const line = (label: string, v: unknown): string | null =>
   typeof v === 'string' && v.trim() !== '' ? `${label}: ${v.trim()}` : null
 
+/** Meter the send so Admin → Insights → API costs shows email volume. Resend's
+ *  free tier is $0, so this tracks COUNT rather than spend. */
+function logUsage(detail: string): void {
+  const url = process.env.VITE_SUPABASE_URL
+  const anon = process.env.VITE_SUPABASE_ANON_KEY
+  if (!url || !anon) return
+  fetch(`${url}/rest/v1/usage_log`, {
+    method: 'POST',
+    headers: { apikey: anon, Authorization: `Bearer ${anon}`, 'content-type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      service: 'email',
+      quantity: 1,
+      est_cost: 0,
+      provider: 'resend',
+      detail: detail.slice(0, 200),
+    }),
+  }).catch(() => {})
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -112,6 +131,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('resend error', upstream.status, (await upstream.text()).slice(0, 300))
       return res.status(200).json({ sent: false, reason: 'send-failed' })
     }
+    logUsage(`${kind} notification`)
     return res.status(200).json({ sent: true })
   } catch (e) {
     console.error('notify error', e instanceof Error ? e.message : e)

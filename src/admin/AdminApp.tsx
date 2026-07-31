@@ -18,6 +18,7 @@ import VendorsManager from './VendorsManager'
 import SetupManager from './SetupManager'
 import SocialManager from './SocialManager'
 import ComposeManager from './ComposeManager'
+import CostsManager from './CostsManager'
 
 function Guard() {
   const { session, loading } = useAuth()
@@ -46,6 +47,7 @@ export default function AdminApp() {
               <Route index element={<Overview />} />
               <Route path="vendors" element={<VendorsManager />} />
               <Route path="analytics" element={<Dashboard />} />
+              <Route path="costs" element={<CostsManager />} />
               <Route path="inbox" element={<InquiriesManager />} />
               {/* old bookmark */}
               <Route path="inquiries" element={<Navigate to="/inbox" replace />} />

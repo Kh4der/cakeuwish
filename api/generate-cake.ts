@@ -91,15 +91,22 @@ function rateLimited(ip: string, now: number): boolean {
 // providers (cloudflare/pollinations) log $0.
 const OPENAI_IMAGE_COST = 0.045
 
-/** Fire-and-forget cost metering into usage_log (shown in Admin → Vendors & bills). */
-function logUsage(cost: number): void {
+/** Fire-and-forget cost metering into usage_log (Admin → Insights → API costs). */
+function logUsage(cost: number, provider: ImageProvider): void {
   const url = process.env.VITE_SUPABASE_URL
   const anon = process.env.VITE_SUPABASE_ANON_KEY
   if (!url || !anon) return
   fetch(`${url}/rest/v1/usage_log`, {
     method: 'POST',
     headers: { apikey: anon, Authorization: `Bearer ${anon}`, 'content-type': 'application/json', Prefer: 'return=minimal' },
-    body: JSON.stringify({ service: 'image', images: 1, est_cost: cost }),
+    body: JSON.stringify({
+      service: 'image',
+      images: 1,
+      quantity: 1,
+      est_cost: cost,
+      provider,
+      detail: 'Cake builder preview',
+    }),
   }).catch(() => {})
 }
 
@@ -238,7 +245,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!img || img.bytes.byteLength === 0) {
       return res.status(502).json({ error: 'The oven hiccuped — try generating again.' })
     }
-    logUsage(provider === 'openai' ? OPENAI_IMAGE_COST : 0)
+    logUsage(provider === 'openai' ? OPENAI_IMAGE_COST : 0, provider)
 
     const url = await storeImage(img)
     // Fall back to a data URL so the preview still shows if storage failed

@@ -26,6 +26,30 @@ async function verifyAdmin(token: string): Promise<boolean> {
   }
 }
 
+// claude-haiku-4-5 pricing ($/token) — vision input is billed as input tokens.
+const IN_RATE = 1 / 1_000_000
+const OUT_RATE = 5 / 1_000_000
+
+/** Fire-and-forget cost metering into usage_log (Admin → Insights → API costs). */
+function logUsage(inputTokens: number, outputTokens: number): void {
+  const url = process.env.VITE_SUPABASE_URL
+  const anon = process.env.VITE_SUPABASE_ANON_KEY
+  if (!url || !anon) return
+  fetch(`${url}/rest/v1/usage_log`, {
+    method: 'POST',
+    headers: { apikey: anon, Authorization: `Bearer ${anon}`, 'content-type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      service: 'receipt',
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      quantity: 1,
+      est_cost: Math.min(100, inputTokens * IN_RATE + outputTokens * OUT_RATE),
+      provider: 'anthropic',
+      detail: 'Receipt photo read',
+    }),
+  }).catch(() => {})
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -69,7 +93,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.error('anthropic receipt error', upstream.status, (await upstream.text()).slice(0, 300))
       return res.status(502).json({ error: 'Could not read the bill — fill the fields manually.' })
     }
-    const json = (await upstream.json()) as { content?: { type: string; text?: string }[] }
+    const json = (await upstream.json()) as {
+      content?: { type: string; text?: string }[]
+      usage?: { input_tokens?: number; output_tokens?: number }
+    }
+    logUsage(json.usage?.input_tokens ?? 0, json.usage?.output_tokens ?? 0)
     const text = (json.content ?? [])
       .filter((b) => b.type === 'text')
       .map((b) => b.text ?? '')

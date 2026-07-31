@@ -6,6 +6,7 @@ import {
   BookOpenText,
   Cake,
   CalendarDays,
+  Coins,
   ClipboardList,
   Images,
   Inbox,
@@ -50,7 +51,10 @@ const GROUPS = [
   },
   {
     title: 'Insights',
-    items: [{ to: '/analytics', label: 'Site analytics', short: 'Stats', icon: BarChart3, end: false }],
+    items: [
+      { to: '/analytics', label: 'Site analytics', short: 'Stats', icon: BarChart3, end: false },
+      { to: '/costs', label: 'API costs', short: 'Costs', icon: Coins, end: false },
+    ],
   },
 ]
 

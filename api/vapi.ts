@@ -55,6 +55,29 @@ function secretOk(header: string | undefined): boolean {
 // Vapi retries webhooks — don't file the same call twice (per warm instance).
 const seen = new Set<string>()
 
+/** Fire-and-forget cost metering into usage_log (Admin → Insights → API costs). */
+function logUsage(cost: number, detail: string): void {
+  if (!SB_URL || !SB_ANON) return
+  fetch(`${SB_URL}/rest/v1/usage_log`, {
+    method: 'POST',
+    headers: {
+      apikey: SB_ANON,
+      Authorization: `Bearer ${SB_ANON}`,
+      'content-type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      service: 'voice',
+      quantity: 1,
+      est_cost: Math.min(100, Math.max(0, cost)),
+      provider: 'vapi',
+      detail: detail.slice(0, 200),
+    }),
+  }).catch(() => {})
+}
+
+const mmss = (s: number) => `${Math.floor(s / 60)}m${String(Math.round(s % 60)).padStart(2, '0')}s`
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   if (!SECRET) return res.status(200).json({ configured: false })
@@ -83,6 +106,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const transcript = str(artifact.transcript, 6000) || str(msg.transcript, 6000)
   const durationS = num(msg.durationSeconds) ?? 0
   const callerNumber = str(obj(call.customer).number, 40) || str(obj(msg.customer).number, 40)
+
+  // Vapi reports the real dollar cost of the call in the report — meter it even
+  // for calls we don't file (a 5-second misdial still burns credit).
+  const callCost = num(msg.cost)
+  if (callCost !== null && callCost > 0) {
+    logUsage(callCost, `Inbound call ${mmss(durationS)}`)
+  }
 
   const name = str(sd.name, 200)
   const phone = str(sd.phone, 40) || callerNumber
