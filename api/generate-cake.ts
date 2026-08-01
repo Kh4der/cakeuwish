@@ -44,6 +44,7 @@ const BLOCKLIST =
 interface BuilderSpec {
   prompt?: unknown
   tiers?: unknown
+  shape?: unknown
   style?: unknown
   colors?: unknown
   occasion?: unknown
@@ -63,7 +64,8 @@ const ADDON_PHRASES: Record<string, string> = {
   'Delivery & setup': '', // service add-on — nothing to depict
 }
 
-const TIERS = new Set(['1', '2', '3'])
+const TIERS = new Set(['1', '2', '3', '4', '5'])
+const SHAPES = new Set(['round', 'square'])
 const STYLES = new Set([
   'smooth buttercream',
   'textured buttercream',
@@ -208,6 +210,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const spec = (req.body ?? {}) as BuilderSpec
   const tiers = TIERS.has(String(spec.tiers)) ? String(spec.tiers) : '1'
+  const shapeRaw = typeof spec.shape === 'string' ? spec.shape.toLowerCase() : ''
+  const shape = SHAPES.has(shapeRaw) ? shapeRaw : 'round'
   const styleRaw = typeof spec.style === 'string' ? spec.style.toLowerCase() : ''
   const style = STYLES.has(styleRaw) ? styleRaw : 'smooth buttercream'
   const description = cleanText(spec.prompt, MAX_PROMPT)
@@ -229,7 +233,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Fixed template — the customer's words can only ever DESCRIBE A CAKE: they
   // are injected as the decoration brief of a cake photograph, nothing else.
   const prompt = [
-    `Professional bakery product photograph of a single ${tiers}-tier custom celebration cake with a ${style} finish.`,
+    `Professional bakery product photograph of a single ${tiers}-tier ${shape} custom celebration cake with a ${style} finish.`,
+    tiers !== '1' &&
+      `The tiers are stacked directly on top of each other, each tier smaller than the one below, all ${shape} in plan view.`,
     `The customer's decoration brief, to be expressed purely as cake decoration (piping, sugar work, edible decorations ON the cake — never scenes, people, or objects outside the cake): "${description}".`,
     colors && `Color palette: ${colors}.`,
     occasion && `The cake is for: ${occasion}.`,

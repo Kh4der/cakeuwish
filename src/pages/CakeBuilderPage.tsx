@@ -13,7 +13,8 @@ import type { Availability } from '../lib/availability'
 const BACKEND = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
 
 const MAX_PROMPT = 400
-const TIER_OPTIONS = ['1', '2', '3'] as const
+const TIER_OPTIONS = ['1', '2', '3', '4', '5'] as const
+const SHAPE_OPTIONS = ['Round', 'Square'] as const
 const STYLE_OPTIONS = [
   'Smooth buttercream',
   'Textured buttercream',
@@ -35,7 +36,18 @@ const SWATCHES = [
 
 // Ballpark bands anchored to the published starting prices; add-ons stack
 // their own published from-prices on top. Estimates only — Parul quotes.
-const TIER_BASE: Record<string, [number, number]> = { '1': [95, 150], '2': [185, 280], '3': [325, 480] }
+// 1–3 mirror the published starting prices; 4–5 extrapolate the same curve
+// (tall tiers need internal doweling and much more labour). All estimates.
+const TIER_BASE: Record<string, [number, number]> = {
+  '1': [95, 150],
+  '2': [185, 280],
+  '3': [325, 480],
+  '4': [480, 700],
+  '5': [650, 950],
+}
+// Square tiers take more work than round: sharp corners have to be built and
+// iced true, so the ballpark nudges up.
+const SHAPE_FACTOR: Record<string, number> = { Round: 1, Square: 1.1 }
 const STYLE_FACTOR: Record<string, number> = {
   Fondant: 1.2,
   'Floral cascade': 1.2,
@@ -60,26 +72,37 @@ function chipCls(active: boolean) {
 }
 
 /** Playful CSS cake mock that mirrors the choices before AI renders the real preview. */
-function CakeMock({ tiers, colors }: { tiers: string; colors: string[] }) {
-  const n = Number(tiers)
+function CakeMock({ tiers, shape, colors }: { tiers: string; shape: string; colors: string[] }) {
+  const n = Math.max(1, Math.min(5, Number(tiers) || 1))
   const palette = colors.length > 0 ? colors : ['#F3EDE1']
-  const widths = ['82%', '62%', '44%']
-  const tierHeight = n === 1 ? 120 : n === 2 ? 88 : 68
+  const square = shape === 'Square'
+  // Tiers are drawn top-first, so index 0 is the SMALLEST. Widths taper evenly
+  // from the base up, and heights shrink as the stack grows so five tiers still
+  // fit the square preview box.
+  const HEIGHTS: Record<number, number> = { 1: 120, 2: 88, 3: 68, 4: 55, 5: 46 }
+  const tierHeight = HEIGHTS[n]
+  const widthFor = (fromTop: number) => {
+    const fromBottom = n - 1 - fromTop
+    if (n === 1) return 78
+    return 86 - (fromBottom * (86 - 38)) / (n - 1)
+  }
   return (
     <div className="flex h-full w-full flex-col items-center justify-end pb-10" aria-hidden="true">
       {Array.from({ length: n }).map((_, i) => (
         <div
           key={i}
-          className="rounded-t-xl border border-black/5 shadow-soft transition-all duration-500"
+          className="border border-black/5 shadow-soft transition-all duration-500"
           style={{
-            width: widths[n - 1 - i] ?? '50%',
+            width: `${widthFor(i)}%`,
             height: `${tierHeight}px`,
             backgroundColor: palette[i % palette.length],
-            borderRadius: i === 0 ? '14px 14px 4px 4px' : '4px',
+            // Square cakes read by their crisp corners; round ones stay soft,
+            // with the top tier domed a little more.
+            borderRadius: square ? '2px' : i === 0 ? '14px 14px 6px 6px' : '8px',
           }}
         />
       ))}
-      <div className="h-2.5 w-[94%] rounded-full bg-primary/85" />
+      <div className={`h-2.5 w-[94%] bg-primary/85 ${square ? 'rounded-sm' : 'rounded-full'}`} />
       <div className="mx-auto h-8 w-14 rounded-b-2xl bg-primary/70" />
     </div>
   )
@@ -93,6 +116,7 @@ export default function CakeBuilderPage() {
 
   const [prompt, setPrompt] = useState('')
   const [tiers, setTiers] = useState<(typeof TIER_OPTIONS)[number]>('2')
+  const [shape, setShape] = useState<(typeof SHAPE_OPTIONS)[number]>('Round')
   const [style, setStyle] = useState(STYLE_OPTIONS[0])
   const [colors, setColors] = useState<string[]>(['Blush pink', 'Gold'])
   const [occasion, setOccasion] = useState('')
@@ -140,8 +164,12 @@ export default function CakeBuilderPage() {
           : ''
 
   const estimate = useMemo(() => {
-    let [lo, hi] = TIER_BASE[tiers]
-    const f = (STYLE_FACTOR[style] ?? 1) * (prompt.trim().length > 40 ? 1.1 : 1)
+    const base = TIER_BASE[tiers] ?? TIER_BASE['1']
+    let [lo, hi] = base
+    const f =
+      (STYLE_FACTOR[style] ?? 1) *
+      (SHAPE_FACTOR[shape] ?? 1) *
+      (prompt.trim().length > 40 ? 1.1 : 1)
     lo = lo * (f > 1 ? (1 + f) / 2 : 1)
     hi = hi * f
     for (const a of addons) {
@@ -150,9 +178,9 @@ export default function CakeBuilderPage() {
       hi += ahi
     }
     const round5 = (n: number) => Math.round(n / 5) * 5
-    const level = hi >= TIER_BASE[tiers][1] * 1.25 ? 'Showstopper' : hi > TIER_BASE[tiers][1] * 1.05 ? 'Detailed' : 'Classic'
+    const level = hi >= base[1] * 1.25 ? 'Showstopper' : hi > base[1] * 1.05 ? 'Detailed' : 'Classic'
     return { lo: round5(lo), hi: round5(hi), level }
-  }, [tiers, style, prompt, addons])
+  }, [tiers, shape, style, prompt, addons])
 
   const toggleColor = (name: string) =>
     setColors((cs) => (cs.includes(name) ? cs.filter((c) => c !== name) : cs.length >= 3 ? cs : [...cs, name]))
@@ -161,7 +189,7 @@ export default function CakeBuilderPage() {
 
   const specLines = () => [
     prompt.trim() && `“${prompt.trim().slice(0, 120)}${prompt.trim().length > 120 ? '…' : ''}”`,
-    `Tiers: ${tiers} · Style: ${style}`,
+    `Tiers: ${tiers} · Shape: ${shape} · Style: ${style}`,
     colors.length > 0 && `Colors: ${colors.join(', ')}`,
     addons.length > 0 && `Add-ons: ${addons.join(', ')}`,
     `Ballpark shown: $${estimate.lo}–$${estimate.hi} (${estimate.level})`,
@@ -174,7 +202,7 @@ export default function CakeBuilderPage() {
     }
     setGenError('')
     setGenState('generating')
-    track('builder_generate', { tiers, style, addons: addons.length })
+    track('builder_generate', { tiers, shape, style, addons: addons.length })
     try {
       const res = await fetch('/api/generate-cake', {
         method: 'POST',
@@ -182,6 +210,7 @@ export default function CakeBuilderPage() {
         body: JSON.stringify({
           prompt: prompt.trim(),
           tiers,
+          shape: shape.toLowerCase(),
           style: style.toLowerCase(),
           colors: colors.join(', '),
           occasion,
@@ -326,6 +355,25 @@ export default function CakeBuilderPage() {
                   </button>
                 ))}
               </div>
+              <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Cake shape">
+                {SHAPE_OPTIONS.map((s) => (
+                  <button key={s} type="button" onClick={() => setShape(s)} aria-pressed={shape === s} className={chipCls(shape === s)}>
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        className={`h-3.5 w-3.5 border-2 border-current ${s === 'Round' ? 'rounded-full' : 'rounded-[2px]'}`}
+                        aria-hidden="true"
+                      />
+                      {s}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {Number(tiers) >= 4 && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Four and five tiers are showstopper territory — they need internal support and extra lead time.
+                  Parul will confirm what's possible for your date.
+                </p>
+              )}
               <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Finish style">
                 {STYLE_OPTIONS.map((s) => (
                   <button key={s} type="button" onClick={() => setStyle(s)} aria-pressed={style === s} className={chipCls(style === s)}>
@@ -451,7 +499,7 @@ export default function CakeBuilderPage() {
                 {imageUrl ? (
                   <img src={imageUrl} alt="AI preview of your cake design" className="h-full w-full object-cover" />
                 ) : (
-                  <CakeMock tiers={tiers} colors={colors.map((n) => SWATCHES.find((s) => s.name === n)?.hex ?? '#F3EDE1')} />
+                  <CakeMock tiers={tiers} shape={shape} colors={colors.map((n) => SWATCHES.find((s) => s.name === n)?.hex ?? '#F3EDE1')} />
                 )}
               </div>
               <div className="border-t border-border p-5">
