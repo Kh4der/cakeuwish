@@ -159,7 +159,7 @@ export default function CakeDetailPage() {
                 <span
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 rounded-[2rem]"
-                  style={{ boxShadow: 'inset 0 0 64px rgba(28, 25, 23, 0.08)' }}
+                  style={{ boxShadow: 'inset 0 0 64px rgba(58, 42, 30, 0.08)' }}
                 />
               </div>
               {images.length > 1 && (

@@ -1,33 +1,38 @@
 @import "tailwindcss";
 
 @theme {
-  /* Premium / Elegant palette — charcoal-black + gold on warm off-white
-     (ui-ux-pro-max "Liquid Glass" design system; see design-system/cakeuwish/MASTER.md) */
-  --color-background: #FAF9F7;        /* warm off-white */
-  --color-foreground: #1C1917;        /* near-black (stone-900) */
-  --color-primary: #1C1917;           /* premium charcoal-black */
-  --color-primary-hover: #000000;
-  --color-on-primary: #FAF9F7;
-  --color-secondary: #44403C;         /* warm grey */
-  --color-accent: #A16207;            /* gold (WCAG-adjusted) */
-  --color-accent-hover: #854D0E;
+  /* Brand palette, sampled from the CakeUWish photography: warm cream backdrop,
+     the logo's cocoa brown and gold, peach roses and the logo's blush pink.
+     Every text pair below is WCAG AA on its intended surface — the blush/peach/
+     sage trio is DECORATIVE ONLY (too light to carry text). */
+  --color-background: #FBF6EF;        /* warm cream backdrop */
+  --color-foreground: #3A2A1E;        /* deep cocoa (12.8:1 on background) */
+  --color-primary: #6B4423;           /* the logo's warm brown */
+  --color-primary-hover: #523320;
+  --color-on-primary: #FDF8F2;
+  --color-secondary: #6B5545;         /* warm grey-brown */
+  --color-accent: #96601A;            /* logo gold, WCAG-tuned (4.9:1 on bg) */
+  --color-accent-hover: #7C4A12;
   --color-card: #FFFFFF;
-  --color-card-foreground: #1C1917;
-  --color-muted: #F1EDE8;             /* soft warm-neutral section fill */
-  --color-muted-foreground: #57534E;  /* stone-600 */
-  --color-border: #E7E1D9;            /* soft warm border */
-  --color-cream: #F5EFE6;             /* champagne (warm light surface) */
-  --color-espresso: #1C1917;          /* repurposed -> charcoal-black */
-  --color-gold: #A16207;
-  --color-gold-soft: #CA8A04;         /* decorative-only brighter gold */
+  --color-card-foreground: #3A2A1E;
+  --color-muted: #F4E9DC;             /* soft cream section fill */
+  --color-muted-foreground: #6B5545;  /* 6.5:1 on background */
+  --color-border: #EADCCB;            /* warm sand border */
+  --color-cream: #F7EDE1;             /* deeper cream surface */
+  --color-espresso: #3A2A1E;
+  --color-gold: #96601A;
+  --color-gold-soft: #C79A3E;         /* decorative-only brighter gold */
+  --color-blush: #EFA9BC;             /* logo cake pink — decorative only */
+  --color-peach: #F2C9AE;             /* rose petals — decorative only */
+  --color-sage: #8FA876;              /* foliage — decorative only */
   --color-whatsapp: #25D366;
 
   --font-display: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-body: 'Inter', system-ui, -apple-system, sans-serif;
 
-  --shadow-cake: 0 32px 64px -16px rgba(28, 25, 23, 0.28);
-  --shadow-soft: 0 4px 24px rgba(28, 25, 23, 0.10);
-  --shadow-gold: 0 0 40px 6px rgba(161, 98, 7, 0.18);
+  --shadow-cake: 0 32px 64px -16px rgba(58, 42, 30, 0.26);
+  --shadow-soft: 0 4px 24px rgba(58, 42, 30, 0.10);
+  --shadow-gold: 0 0 40px 6px rgba(150, 96, 26, 0.18);
 }
 
 * {
@@ -92,7 +97,7 @@ html.lenis body {
   -webkit-backface-visibility: hidden;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 8px 22px rgba(28, 25, 23, 0.20);
+  box-shadow: 0 8px 22px rgba(58, 42, 30, 0.20);
 }
 .sg-back { transform: rotateY(180deg); }
 .sg-card { cursor: pointer; }
@@ -152,7 +157,7 @@ html.lenis body {
 
 /* Gold-foil text: subtle metallic gradient for accent words. */
 .text-foil {
-  background: linear-gradient(100deg, #A16207 15%, #E0B25A 40%, #A16207 65%, #7C4A05 90%);
+  background: linear-gradient(100deg, #96601A 15%, #DCB273 40%, #96601A 65%, #6E430D 90%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -164,7 +169,7 @@ html.lenis body {
   font-weight: 900;
   line-height: 1;
   color: transparent;
-  -webkit-text-stroke: 1.5px rgba(161, 98, 7, 0.28);
+  -webkit-text-stroke: 1.5px rgba(150, 96, 26, 0.28);
 }
 
 /* Hover-zoom media frame: image scales inside a clipped frame. */
@@ -180,19 +185,19 @@ html.lenis body {
   outline: 3px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 4px;
-  box-shadow: 0 0 0 5px rgba(250, 249, 247, 0.7); /* light halo keeps the ring visible on dark/coloured surfaces (FAB, footer) */
+  box-shadow: 0 0 0 5px rgba(251, 246, 239, 0.7); /* light halo keeps the ring visible on dark/coloured surfaces (FAB, footer) */
 }
 
 /* ── Liquid-glass utilities (premium signature) ───────────────────────────── */
 .glass {
-  background: rgba(250, 249, 247, 0.62);
+  background: rgba(251, 246, 239, 0.62);
   backdrop-filter: blur(16px) saturate(1.4);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow: 0 8px 32px rgba(28, 25, 23, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  box-shadow: 0 8px 32px rgba(58, 42, 30, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .glass-dark {
-  background: rgba(28, 25, 23, 0.55);
+  background: rgba(58, 42, 30, 0.55);
   backdrop-filter: blur(16px) saturate(1.3);
   -webkit-backdrop-filter: blur(16px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.12);

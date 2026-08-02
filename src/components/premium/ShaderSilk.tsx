@@ -30,10 +30,10 @@ void main(){
   float t = u_t * 0.035;
   float flow = fbm(p * 1.6 + vec2(t, -t * 0.6) + fbm(p * 2.2 - t) * 0.9);
 
-  vec3 cream    = vec3(0.980, 0.976, 0.969); // #FAF9F7
-  vec3 champagne= vec3(0.961, 0.937, 0.902);
-  vec3 caramel  = vec3(0.851, 0.722, 0.494);
-  vec3 gold     = vec3(0.631, 0.384, 0.027); // #A16207
+  vec3 cream    = vec3(0.984, 0.965, 0.937); // #FBF6EF warm cream backdrop
+  vec3 champagne= vec3(0.969, 0.929, 0.882); // #F7EDE1
+  vec3 caramel  = vec3(0.949, 0.788, 0.682); // #F2C9AE peach rose
+  vec3 gold     = vec3(0.588, 0.376, 0.102); // #96601A logo gold
 
   vec3 col = mix(cream, champagne, smoothstep(0.25, 0.75, flow));
   col = mix(col, caramel, smoothstep(0.62, 0.95, flow) * 0.35);
@@ -52,7 +52,7 @@ void main(){ gl_Position = vec4(a_pos, 0.0, 1.0); }
 `
 
 const FALLBACK =
-  'radial-gradient(120% 90% at 50% 30%, #F5EFE6 0%, #FAF9F7 55%), linear-gradient(160deg, #FAF9F7 0%, #F3EDE1 50%, #EFE4D0 100%)'
+  'radial-gradient(120% 90% at 50% 30%, #F7EDE1 0%, #FBF6EF 55%), linear-gradient(160deg, #FBF6EF 0%, #F4E9DC 50%, #F2C9AE 100%)'
 
 export default function ShaderSilk({ className = '' }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)

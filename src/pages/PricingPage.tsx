@@ -145,8 +145,8 @@ export default function PricingPage() {
                   style={{
                     width: DISC_SIZES[i],
                     height: DISC_SIZES[i],
-                    background: 'radial-gradient(circle at 32% 28%, #FFFFFF 0%, #F5EFE6 55%, #EBDFC9 100%)',
-                    boxShadow: 'inset 0 2px 10px rgba(161,98,7,0.12), 0 14px 28px -14px rgba(28,25,23,0.28)',
+                    background: 'radial-gradient(circle at 32% 28%, #FFFFFF 0%, #F7EDE1 55%, #F2C9AE 100%)',
+                    boxShadow: 'inset 0 2px 10px rgba(150,96,26,0.12), 0 14px 28px -14px rgba(58,42,30,0.28)',
                   }}
                 >
                   <span className="font-display text-base font-bold text-accent sm:text-xl">{row.servings}</span>

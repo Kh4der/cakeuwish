@@ -67,9 +67,9 @@ export default function Intro() {
     const cakeFont = `900 ${fs}px ${family}`
     const uFont = `900 ${fsU}px ${family}`
     let x = w / 2 - total / 2
-    o.font = cakeFont; o.fillStyle = '#1C1917'; o.fillText('CAKE ', x, y); x += wCake
-    o.font = uFont; o.fillStyle = '#A16207'; o.fillText('U', x, y); uRef.current = { x: x + wU / 2, y }; x += wU
-    o.font = cakeFont; o.fillStyle = '#1C1917'; o.fillText(' WISH', x, y)
+    o.font = cakeFont; o.fillStyle = '#3A2A1E'; o.fillText('CAKE ', x, y); x += wCake
+    o.font = uFont; o.fillStyle = '#96601A'; o.fillText('U', x, y); uRef.current = { x: x + wU / 2, y }; x += wU
+    o.font = cakeFont; o.fillStyle = '#3A2A1E'; o.fillText(' WISH', x, y)
 
     const img = o.getImageData(0, 0, w, h).data
     const mobile = w < 768
@@ -290,7 +290,7 @@ export default function Intro() {
       <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
         <HoverBloom />
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
-        <div ref={hintRef} className="pointer-events-none absolute bottom-10 text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: 'rgba(28,25,23,0.68)' }}>
+        <div ref={hintRef} className="pointer-events-none absolute bottom-10 text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: 'rgba(58,42,30,0.68)' }}>
           Scroll to enter ↓
         </div>
       </div>

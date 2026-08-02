@@ -307,7 +307,7 @@ export default function ChatWidget() {
           visible ? 'scale-100 opacity-100' : 'pointer-events-none scale-50 opacity-0'
         }`}
         style={{
-          boxShadow: '0 4px 14px rgba(0,0,0,0.28), 0 0 0 1.5px #A16207',
+          boxShadow: '0 4px 14px rgba(58,42,30,0.28), 0 0 0 1.5px #96601A',
           left: 'max(1.25rem, env(safe-area-inset-left))',
           bottom: 'max(1.25rem, env(safe-area-inset-bottom))',
         }}

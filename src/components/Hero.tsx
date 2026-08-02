@@ -55,8 +55,8 @@ export default function Hero() {
   const isMobileRef = useRef(isMobile)
   const renderRef = useRef<() => void>(() => {})
 
-  const textMain = cake.dark ? '#FAF9F7' : '#1C1917'
-  const textSub = cake.dark ? 'rgba(250,249,247,0.82)' : 'rgba(28,25,23,0.72)'
+  const textMain = cake.dark ? '#FDF8F2' : '#3A2A1E'
+  const textSub = cake.dark ? 'rgba(253,248,242,0.82)' : 'rgba(58,42,30,0.72)'
   // Two-tone backdrop matching the cake: a lighter spotlight glow over a deeper base.
   const bgDark = shade(cake.bg, cake.dark ? -0.35 : -0.16)
   const bgLight = shade(cake.bg, cake.dark ? 0.32 : 0.22)
@@ -96,7 +96,7 @@ export default function Hero() {
       el.style.opacity = String(opacity)
       // Animated blur/drop-shadow per scroll frame is the biggest jank source on
       // phones — skip filters on mobile (scale + opacity already convey depth).
-      el.style.filter = m ? 'none' : (a < 0.06 ? 'drop-shadow(0 28px 38px rgba(28,25,23,0.22))' : `blur(${Math.min(a, 1.4) * 2.5}px)`)
+      el.style.filter = m ? 'none' : (a < 0.06 ? 'drop-shadow(0 28px 38px rgba(58,42,30,0.22))' : `blur(${Math.min(a, 1.4) * 2.5}px)`)
       el.style.zIndex = String(100 - Math.round(a * 10))
       el.style.visibility = opacity <= 0.001 ? 'hidden' : 'visible'
     }
@@ -274,7 +274,7 @@ export default function Hero() {
         <div className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] left-4 sm:bottom-16 sm:left-16" style={{ zIndex: 60, maxWidth: 340 }}>
           <span
             className="mb-2 inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase"
-            style={{ backgroundColor: cake.dark ? 'rgba(255,255,255,0.10)' : 'rgba(28,25,23,0.05)', color: cake.dark ? '#E8B98A' : '#854D0E', letterSpacing: '0.12em', border: `1px solid ${cake.accent}33` }}
+            style={{ backgroundColor: cake.dark ? 'rgba(255,255,255,0.10)' : 'rgba(58,42,30,0.05)', color: cake.dark ? '#E8B98A' : '#7C4A12', letterSpacing: '0.12em', border: `1px solid ${cake.accent}33` }}
           >
             {cake.category}
           </span>
@@ -291,7 +291,7 @@ export default function Hero() {
             aria-label={`Request a quote for ${cake.title}`}
             data-magnetic
             className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] right-4 flex min-h-[44px] items-center gap-2 rounded-full px-5 py-2.5 transition-transform duration-300 sm:bottom-16 sm:right-12"
-            style={{ zIndex: 60, color: cake.dark ? '#1C1917' : '#FAF9F7', backgroundColor: cake.dark ? '#FAF9F7' : '#1C1917' }}
+            style={{ zIndex: 60, color: cake.dark ? '#3A2A1E' : '#FDF8F2', backgroundColor: cake.dark ? '#FDF8F2' : '#3A2A1E' }}
           >
             <span className="font-display uppercase" style={{ fontSize: 'clamp(15px, 2vw, 22px)', fontWeight: 700, letterSpacing: '0.01em' }}>Order Now</span>
           </Link>
@@ -305,7 +305,7 @@ export default function Hero() {
           data-cursor-label="Order"
           data-loc="hero"
           className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] right-4 flex min-h-[44px] items-center gap-2 rounded-full px-5 py-2.5 transition-transform duration-300 sm:bottom-16 sm:right-12"
-          style={{ zIndex: 60, color: cake.dark ? '#1C1917' : '#FAF9F7', backgroundColor: cake.dark ? '#FAF9F7' : '#1C1917' }}
+          style={{ zIndex: 60, color: cake.dark ? '#3A2A1E' : '#FDF8F2', backgroundColor: cake.dark ? '#FDF8F2' : '#3A2A1E' }}
         >
           <MessageCircle size={isMobile ? 18 : 22} strokeWidth={2.25} aria-hidden="true" />
           <span className="font-display uppercase" style={{ fontSize: 'clamp(15px, 2vw, 22px)', fontWeight: 700, letterSpacing: '0.01em' }}>Order Now</span>
