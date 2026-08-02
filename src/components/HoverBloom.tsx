@@ -128,8 +128,6 @@ export default function HoverBloom() {
     const POOL = Array.from({ length: 15 }, (_, i) => makeFlowerSprite(300, KINDS[i % KINDS.length]))
     const active: Bloom[] = []   // blooms still growing; once grown they're stamped into the garden
     let needsRedraw = false      // when false + no active blooms, the canvas is static → skip the per-frame redraw
-    const SPAWN_DIST = 86
-    let lastX = -999, lastY = -999
     let scrollFade = 1 // 1 on the start screen, fades to 0 as you scroll down to the hero
 
     const spawn = (cx: number, cy: number, big: boolean) => {
@@ -149,25 +147,24 @@ export default function HoverBloom() {
       const inside = clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom
       return { x: clientX - r.left, y: clientY - r.top, inside }
     }
-    const handle = (clientX: number, clientY: number, big: boolean) => {
+    // Flowers grow ONLY where you click or tap. Spawning on hover carpeted the
+    // start screen and buried the logo within seconds.
+    const handle = (clientX: number, clientY: number) => {
       if (scrollFade < 0.15) return // stop growing flowers once scrolled away from the start screen
       const p = local(clientX, clientY)
       if (!p.inside) return
-      if (!big && Math.hypot(p.x - lastX, p.y - lastY) < SPAWN_DIST) return
-      lastX = p.x; lastY = p.y
-      spawn(p.x, p.y, big)
-      if (big) spawn(p.x + 20, p.y - 12, false)
+      spawn(p.x, p.y, true)
+      // one small companion bloom so a click reads as a little cluster
+      spawn(p.x + 26, p.y - 14, false)
     }
-    const onMouseMove = (e: MouseEvent) => handle(e.clientX, e.clientY, false)
-    const onMouseDown = (e: MouseEvent) => handle(e.clientX, e.clientY, true)
-    const onTouchStart = (e: TouchEvent) => { const t = e.touches[0]; if (t) handle(t.clientX, t.clientY, true) }
+    const onMouseDown = (e: MouseEvent) => handle(e.clientX, e.clientY)
+    const onTouchStart = (e: TouchEvent) => { const t = e.touches[0]; if (t) handle(t.clientX, t.clientY) }
     const onScroll = () => {
       // fade the whole garden out as the start screen scrolls toward the hero
       scrollFade = Math.max(0, Math.min(1, 1 - window.scrollY / (window.innerHeight * 0.85)))
-      canvas.style.opacity = String(0.9 * scrollFade)
+      canvas.style.opacity = String(0.62 * scrollFade)
     }
     onScroll()
-    window.addEventListener('mousemove', onMouseMove, { passive: true })
     window.addEventListener('mousedown', onMouseDown, { passive: true })
     window.addEventListener('touchstart', onTouchStart, { passive: true })
     window.addEventListener('resize', resize)
@@ -180,7 +177,7 @@ export default function HoverBloom() {
     const paintBloom = (g: CanvasRenderingContext2D, b: Bloom, stemGrow: number, grow: number) => {
       const sz = b.size * (0.5 + 0.5 * grow)
       const stemLen = b.size * 1.5 * stemGrow
-      g.globalAlpha = 0.3
+      g.globalAlpha = 0.18
       g.strokeStyle = `rgb(${STEM})`
       g.lineWidth = Math.max(2, b.size * 0.011)
       g.lineCap = 'round'
@@ -192,7 +189,9 @@ export default function HoverBloom() {
         b.x + b.lean * stemLen * 0.15, b.y + stemLen,
       )
       g.stroke()
-      g.globalAlpha = 0.55 + 0.45 * grow
+      // Kept well under 1: these sit BEHIND the wordmark and must never
+      // compete with it for attention.
+      g.globalAlpha = (0.2 + 0.28 * grow) * 0.9
       g.drawImage(b.sprite, b.x - sz / 2, b.y - sz / 2, sz, sz)
       g.globalAlpha = 1
     }
@@ -234,7 +233,6 @@ export default function HoverBloom() {
 
     return () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('resize', resize)
@@ -247,7 +245,7 @@ export default function HoverBloom() {
       ref={canvasRef}
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 h-full w-full"
-      style={{ filter: 'blur(0.5px)', opacity: 0.95, zIndex: 0 }}
+      style={{ filter: 'blur(0.6px)', opacity: 0.62, zIndex: 0 }}
     />
   )
 }

@@ -164,11 +164,14 @@ export default function Hero() {
 
   const heightVh = Math.round((1 + (order.length - 1) * STEP) * 100)
 
-  // Bee: desktop + motion allowed only.
+  // Bee: everywhere except reduced-motion. On phones it follows your finger,
+  // so it earns its keep there too — it just waits for first paint so it never
+  // competes with the hero images for bandwidth.
   const [bee, setBee] = useState(false)
   useEffect(() => {
     if (reduced) return
-    if (window.matchMedia('(min-width: 1024px)').matches) setBee(true)
+    const t = window.setTimeout(() => setBee(true), 900)
+    return () => window.clearTimeout(t)
   }, [reduced])
 
   return (

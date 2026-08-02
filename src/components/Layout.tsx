@@ -3,7 +3,6 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Header from './Header'
 import Footer from './Footer'
 import WhatsAppFab from './WhatsAppFab'
-import CustomCursor from './CustomCursor'
 
 // The AI chat widget stays out of the entry chunk and mounts after first paint.
 const ChatWidget = lazy(() => import('./ChatWidget'))
@@ -79,7 +78,6 @@ export default function Layout() {
           <ChatWidget />
         </Suspense>
       )}
-      <CustomCursor />
     </>
   )
 }

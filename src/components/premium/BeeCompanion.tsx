@@ -36,9 +36,10 @@ function Bee({ target }: { target: React.MutableRefObject<Target> }) {
   const bank = useRef(0)
 
   const wingGeo = useMemo(() => {
-    // A flattened, slightly tapered wing.
-    const g = new THREE.SphereGeometry(0.5, 12, 8)
-    g.scale(1, 0.12, 0.55)
+    // Long, thin and nearly flat — a real bee's wing is about as long as its
+    // body, not a stubby paddle.
+    const g = new THREE.SphereGeometry(0.5, 14, 8)
+    g.scale(1.5, 0.06, 0.42)
     return g
   }, [])
 
@@ -92,48 +93,63 @@ function Bee({ target }: { target: React.MutableRefObject<Target> }) {
   })
 
   return (
-    <group ref={group} position={[0, 0, 0]} scale={0.42}>
-      {/* abdomen — striped */}
-      <mesh position={[0, 0, 0.34]}>
-        <sphereGeometry args={[0.42, 20, 16]} />
-        <meshStandardMaterial color={YELLOW} roughness={0.55} />
+    // Small — a bee on screen should read as an insect, not a mascot.
+    <group ref={group} position={[0, 0, 0]} scale={0.17}>
+      {/* abdomen — long, tapering to a point at the back */}
+      <mesh position={[0, 0, 0.46]} scale={[0.82, 0.78, 1.35]}>
+        <sphereGeometry args={[0.4, 20, 16]} />
+        <meshStandardMaterial color={YELLOW} roughness={0.6} />
       </mesh>
-      {[0.16, 0.36, 0.56].map((z, i) => (
-        <mesh key={i} position={[0, 0, z]} scale={[1, 1, 0.16]}>
-          <sphereGeometry args={[0.425 - i * 0.02, 18, 12]} />
-          <meshStandardMaterial color={DARK} roughness={0.7} />
+      {/* four narrow bands, thinning toward the tip */}
+      {[0.18, 0.42, 0.66, 0.86].map((z, i) => (
+        <mesh key={i} position={[0, 0, z]} scale={[0.83 - i * 0.06, 0.79 - i * 0.06, 0.075]}>
+          <sphereGeometry args={[0.405, 18, 12]} />
+          <meshStandardMaterial color={DARK} roughness={0.75} />
         </mesh>
       ))}
-      {/* thorax — fuzzy middle */}
-      <mesh position={[0, 0.02, -0.08]}>
-        <sphereGeometry args={[0.34, 18, 14]} />
-        <meshStandardMaterial color={YELLOW} roughness={0.85} />
+      {/* thorax — compact and fuzzy */}
+      <mesh position={[0, 0.01, -0.12]} scale={[0.92, 0.88, 0.85]}>
+        <sphereGeometry args={[0.33, 18, 14]} />
+        <meshStandardMaterial color="#C8901F" roughness={0.95} />
       </mesh>
-      {/* head */}
-      <mesh position={[0, 0.02, -0.44]}>
-        <sphereGeometry args={[0.26, 18, 14]} />
-        <meshStandardMaterial color={DARK} roughness={0.6} />
+      {/* head — small */}
+      <mesh position={[0, 0, -0.42]} scale={[0.9, 0.85, 0.8]}>
+        <sphereGeometry args={[0.22, 16, 12]} />
+        <meshStandardMaterial color={DARK} roughness={0.65} />
       </mesh>
-      {/* eyes */}
-      {[-0.13, 0.13].map((x) => (
-        <mesh key={x} position={[x, 0.07, -0.6]}>
-          <sphereGeometry args={[0.07, 10, 8]} />
-          <meshStandardMaterial color="#FFFFFF" roughness={0.25} />
+      {/* compound eyes, wrapping the sides of the head */}
+      {[-0.14, 0.14].map((x) => (
+        <mesh key={x} position={[x, 0.02, -0.47]} scale={[0.55, 1, 0.8]}>
+          <sphereGeometry args={[0.09, 10, 8]} />
+          <meshStandardMaterial color="#15100C" roughness={0.2} />
         </mesh>
       ))}
-      {/* antennae */}
-      {[-0.1, 0.1].map((x) => (
-        <mesh key={x} position={[x, 0.2, -0.56]} rotation={[0.5, 0, x > 0 ? -0.35 : 0.35]}>
-          <cylinderGeometry args={[0.012, 0.012, 0.3, 5]} />
+      {/* antennae — elbowed, angled forward */}
+      {[-0.08, 0.08].map((x) => (
+        <mesh key={x} position={[x, 0.14, -0.52]} rotation={[0.7, 0, x > 0 ? -0.4 : 0.4]}>
+          <cylinderGeometry args={[0.009, 0.009, 0.26, 5]} />
           <meshStandardMaterial color={DARK} />
         </mesh>
       ))}
-      {/* wings */}
-      <mesh ref={leftWing} geometry={wingGeo} position={[-0.3, 0.24, 0]} rotation={[-0.35, 0.35, 0.2]}>
-        <meshStandardMaterial color={WING} transparent opacity={0.42} roughness={0.1} metalness={0} />
+      {/* six legs, tucked up in flight */}
+      {[-1, 1].map((side) =>
+        [-0.18, 0.0, 0.18].map((z, i) => (
+          <mesh
+            key={`${side}-${i}`}
+            position={[side * 0.2, -0.2, z]}
+            rotation={[0.6, 0, side * 0.9]}
+          >
+            <cylinderGeometry args={[0.014, 0.008, 0.24, 5]} />
+            <meshStandardMaterial color={DARK} roughness={0.8} />
+          </mesh>
+        )),
+      )}
+      {/* wings — long, held high and swept back */}
+      <mesh ref={leftWing} geometry={wingGeo} position={[-0.42, 0.2, -0.02]} rotation={[-0.3, 0.42, 0.16]}>
+        <meshStandardMaterial color={WING} transparent opacity={0.3} roughness={0.05} side={THREE.DoubleSide} />
       </mesh>
-      <mesh ref={rightWing} geometry={wingGeo} position={[0.3, 0.24, 0]} rotation={[-0.35, -0.35, -0.2]}>
-        <meshStandardMaterial color={WING} transparent opacity={0.42} roughness={0.1} metalness={0} />
+      <mesh ref={rightWing} geometry={wingGeo} position={[0.42, 0.2, -0.02]} rotation={[-0.3, -0.42, -0.16]}>
+        <meshStandardMaterial color={WING} transparent opacity={0.3} roughness={0.05} side={THREE.DoubleSide} />
       </mesh>
     </group>
   )
@@ -164,11 +180,18 @@ export default function BeeCompanion() {
       target.current = { x: p.x, y: p.y, chasing: false }
     }
 
-    const onMove = (e: PointerEvent) => {
-      target.current = { x: e.clientX, y: e.clientY, chasing: true }
+    const chase = (x: number, y: number, holdMs: number) => {
+      target.current = { x, y, chasing: true }
       window.clearTimeout(idleTimer)
       // Stop chasing shortly after the pointer settles, and drift to the cake.
-      idleTimer = window.setTimeout(goIdle, 1600)
+      idleTimer = window.setTimeout(goIdle, holdMs)
+    }
+    const onMove = (e: PointerEvent) => chase(e.clientX, e.clientY, 1600)
+    // Touch: a tap sends the bee over, then it lingers a beat longer before
+    // heading back to the cake (there is no hover to keep it company).
+    const onTouch = (e: TouchEvent) => {
+      const t = e.touches[0] ?? e.changedTouches[0]
+      if (t) chase(t.clientX, t.clientY, 2600)
     }
     const onScroll = () => {
       // While scrolling the carousel the pointer usually isn't moving, so keep
@@ -178,10 +201,14 @@ export default function BeeCompanion() {
 
     goIdle()
     window.addEventListener('pointermove', onMove, { passive: true })
+    window.addEventListener('touchstart', onTouch, { passive: true })
+    window.addEventListener('touchmove', onTouch, { passive: true })
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       window.clearTimeout(idleTimer)
       window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('touchstart', onTouch)
+      window.removeEventListener('touchmove', onTouch)
       window.removeEventListener('scroll', onScroll)
     }
   }, [])
@@ -189,7 +216,8 @@ export default function BeeCompanion() {
   return (
     <div className="pointer-events-none fixed inset-0" aria-hidden="true" style={{ zIndex: 45 }}>
       <Canvas
-        dpr={[1, 1.5]}
+        // One small mesh — capping DPR at 1.25 keeps phones cool for free.
+        dpr={[1, 1.25]}
         camera={{ position: [0, 0, 6], fov: 50 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
         style={{ background: 'transparent' }}
