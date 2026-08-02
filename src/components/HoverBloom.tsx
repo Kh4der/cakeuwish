@@ -8,51 +8,86 @@ import { useEffect, useRef } from 'react'
  * slight CSS blur gives the frosted-glass softness. Reduced-motion → disabled.
  */
 
-// Soft watercolor "Mixed" palette (r,g,b) — original-style colourful blooms
-const MIXED = [
-  '236,148,178', // rose pink
-  '244,176,168', // coral / peach
-  '245,202,150', // warm apricot
-  '202,170,224', // lavender
-  '162,196,226', // powder blue
-  '174,208,188', // soft sage
-  '240,158,192', // pink
-  '249,214,160', // soft gold
+// Straight off the logo and the bee cake: rose pink, gold, peach, sage, cream.
+const PETALS = [
+  '232,123,160', // logo rose pink
+  '239,169,188', // blush
+  '242,201,174', // peach
+  '199,154,62',  // soft gold
+  '245,183,45',  // bee yellow (the daisies on the cake)
+  '190,58,102',  // deep pink
 ]
+const CENTRES = ['58,42,30', '150,96,26', '190,58,102'] // cocoa, gold, deep pink
+const STEM = '143,168,118' // sage
 
-function makeFlowerSprite(size: number): HTMLCanvasElement {
+type Kind = 'daisy' | 'rose' | 'blossom'
+
+/** One flower head, drawn with real petals rather than a watercolor smudge. */
+function makeFlowerSprite(size: number, kind: Kind): HTMLCanvasElement {
   const c = document.createElement('canvas')
   c.width = c.height = size
   const x = c.getContext('2d')!
-  const cx = size / 2, cy = size / 2
-  const petals = 5 + Math.floor(Math.random() * 3) // 5–7
-  const base = MIXED[Math.floor(Math.random() * MIXED.length)]
-  const accent = MIXED[Math.floor(Math.random() * MIXED.length)] // 2nd tone for watercolor variation
-  const pr = size * 0.30  // petal radius
-  const off = size * 0.16 // petal centre offset from middle
+  const cx = size / 2
+  const cy = size / 2
+  const base = PETALS[(Math.random() * PETALS.length) | 0]
+  const centre = CENTRES[(Math.random() * CENTRES.length) | 0]
   const rot0 = Math.random() * Math.PI * 2
-  for (let i = 0; i < petals; i++) {
-    const a = rot0 + (i / petals) * Math.PI * 2
-    const ex = cx + Math.cos(a) * off
-    const ey = cy + Math.sin(a) * off
-    const col = i % 2 === 0 ? base : accent
-    const g = x.createRadialGradient(ex, ey, 0, ex, ey, pr)
-    g.addColorStop(0, `rgba(${col},0.46)`)
-    g.addColorStop(0.55, `rgba(${col},0.22)`)
-    g.addColorStop(1, `rgba(${col},0)`)
-    x.fillStyle = g
+
+  if (kind === 'daisy') {
+    // Many narrow petals around a dark eye — the sunflower-ish daisies piped
+    // around the bee cake.
+    const n = 11 + ((Math.random() * 4) | 0)
+    for (let i = 0; i < n; i++) {
+      const a = rot0 + (i / n) * Math.PI * 2
+      const len = size * (0.30 + Math.random() * 0.05)
+      x.save()
+      x.translate(cx, cy)
+      x.rotate(a)
+      const g = x.createLinearGradient(0, 0, 0, -len)
+      g.addColorStop(0, `rgba(${base},0.95)`)
+      g.addColorStop(1, `rgba(${base},0.55)`)
+      x.fillStyle = g
+      x.beginPath()
+      x.ellipse(0, -len * 0.58, size * 0.045, len * 0.5, 0, 0, Math.PI * 2)
+      x.fill()
+      x.restore()
+    }
+    x.fillStyle = `rgba(${centre},0.92)`
     x.beginPath()
-    x.ellipse(ex, ey, pr, pr * 0.78, a, 0, Math.PI * 2)
+    x.arc(cx, cy, size * 0.10, 0, Math.PI * 2)
+    x.fill()
+  } else if (kind === 'rose') {
+    // Concentric spiralling arcs read as a rose from a distance.
+    for (let r = size * 0.30; r > size * 0.03; r -= size * 0.035) {
+      const t = r / (size * 0.30)
+      x.strokeStyle = `rgba(${base},${0.30 + (1 - t) * 0.55})`
+      x.lineWidth = size * 0.045
+      x.lineCap = 'round'
+      x.beginPath()
+      x.arc(cx, cy, r, rot0 + t * 5.2, rot0 + t * 5.2 + Math.PI * 1.45)
+      x.stroke()
+    }
+  } else {
+    // Five rounded petals — a simple cherry-blossom shape.
+    const n = 5
+    for (let i = 0; i < n; i++) {
+      const a = rot0 + (i / n) * Math.PI * 2
+      const off = size * 0.17
+      const ex = cx + Math.cos(a) * off
+      const ey = cy + Math.sin(a) * off
+      const g = x.createRadialGradient(ex, ey, 0, ex, ey, size * 0.22)
+      g.addColorStop(0, `rgba(${base},0.95)`)
+      g.addColorStop(1, `rgba(${base},0.42)`)
+      x.fillStyle = g
+      x.beginPath()
+      x.ellipse(ex, ey, size * 0.20, size * 0.15, a, 0, Math.PI * 2)
+      x.fill()
+    }
+    x.fillStyle = `rgba(${centre},0.85)`
+    x.beginPath()
+    x.arc(cx, cy, size * 0.075, 0, Math.PI * 2)
     x.fill()
   }
-  // soft watercolor centre
-  const cg = x.createRadialGradient(cx, cy, 0, cx, cy, size * 0.14)
-  cg.addColorStop(0, `rgba(${accent},0.55)`)
-  cg.addColorStop(1, `rgba(${accent},0)`)
-  x.fillStyle = cg
-  x.beginPath()
-  x.arc(cx, cy, size * 0.14, 0, Math.PI * 2)
-  x.fill()
   return c
 }
 
@@ -87,8 +122,10 @@ export default function HoverBloom() {
     }
     resize()
 
-    // a small reusable pool of flower sprites (a big garden stays cheap)
-    const POOL = Array.from({ length: 12 }, () => makeFlowerSprite(300)) // smaller sprites → much less canvas memory on mobile
+    // A reusable pool covering all three flower types, so a moving pointer
+    // scatters a mixed bed rather than one repeated shape.
+    const KINDS: Kind[] = ['daisy', 'daisy', 'rose', 'blossom', 'blossom']
+    const POOL = Array.from({ length: 15 }, (_, i) => makeFlowerSprite(300, KINDS[i % KINDS.length]))
     const active: Bloom[] = []   // blooms still growing; once grown they're stamped into the garden
     let needsRedraw = false      // when false + no active blooms, the canvas is static → skip the per-frame redraw
     const SPAWN_DIST = 86
@@ -143,8 +180,8 @@ export default function HoverBloom() {
     const paintBloom = (g: CanvasRenderingContext2D, b: Bloom, stemGrow: number, grow: number) => {
       const sz = b.size * (0.5 + 0.5 * grow)
       const stemLen = b.size * 1.5 * stemGrow
-      g.globalAlpha = 0.15
-      g.strokeStyle = 'rgb(156,182,148)'
+      g.globalAlpha = 0.3
+      g.strokeStyle = `rgb(${STEM})`
       g.lineWidth = Math.max(2, b.size * 0.011)
       g.lineCap = 'round'
       g.beginPath()
@@ -155,7 +192,7 @@ export default function HoverBloom() {
         b.x + b.lean * stemLen * 0.15, b.y + stemLen,
       )
       g.stroke()
-      g.globalAlpha = 0.45 + 0.5 * grow
+      g.globalAlpha = 0.55 + 0.45 * grow
       g.drawImage(b.sprite, b.x - sz / 2, b.y - sz / 2, sz, sz)
       g.globalAlpha = 1
     }
@@ -210,7 +247,7 @@ export default function HoverBloom() {
       ref={canvasRef}
       aria-hidden="true"
       className="pointer-events-none absolute inset-0 h-full w-full"
-      style={{ filter: 'blur(1.4px)', opacity: 0.9, zIndex: 0 }}
+      style={{ filter: 'blur(0.5px)', opacity: 0.95, zIndex: 0 }}
     />
   )
 }

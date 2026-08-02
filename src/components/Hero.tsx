@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
 import { WHATSAPP_ENABLED, WHATSAPP_URL, START_ID } from '../data/cakes'
 import { useContent } from '../content/ContentProvider'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
+
+// The bee is three.js — lazy so it never touches the entry chunk, and only on
+// wide, motion-friendly screens where a flying companion is a delight rather
+// than a battery tax.
+const BeeCompanion = lazy(() => import('./premium/BeeCompanion'))
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
 // Viewport fraction of scroll spent gliding from one cake to the next.
@@ -159,6 +164,13 @@ export default function Hero() {
 
   const heightVh = Math.round((1 + (order.length - 1) * STEP) * 100)
 
+  // Bee: desktop + motion allowed only.
+  const [bee, setBee] = useState(false)
+  useEffect(() => {
+    if (reduced) return
+    if (window.matchMedia('(min-width: 1024px)').matches) setBee(true)
+  }, [reduced])
+
   return (
     <section
       ref={stageRef}
@@ -227,8 +239,10 @@ export default function Hero() {
         </div>
         <div aria-live="polite" aria-atomic="true" className="sr-only">{cake.title}, cake {active + 1} of {order.length}</div>
 
-        {/* carousel: every cake stays whole; scroll slides them across the stage */}
-        <div className="absolute inset-0" style={{ zIndex: 3 }}>
+        {/* carousel: every cake stays whole; scroll slides them across the stage.
+            data-bee-anchor tells BeeCompanion where the cake on stage is, so the
+            bee drifts over to visit it whenever the pointer goes still. */}
+        <div className="absolute inset-0" data-bee-anchor style={{ zIndex: 3 }}>
           {order.map((ci, slot) => {
             const c = cakes[ci]
             if (!c) return null
@@ -262,6 +276,12 @@ export default function Hero() {
             )
           })}
         </div>
+
+        {bee && (
+          <Suspense fallback={null}>
+            <BeeCompanion />
+          </Suspense>
+        )}
 
         {/* scroll hint (desktop only — mobile bottom row holds title + CTA) */}
         {!reduced && !isMobile && (
