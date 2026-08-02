@@ -68,7 +68,7 @@ export default function Intro() {
     const uFont = `900 ${fsU}px ${family}`
     let x = w / 2 - total / 2
     o.font = cakeFont; o.fillStyle = '#3A2A1E'; o.fillText('CAKE ', x, y); x += wCake
-    o.font = uFont; o.fillStyle = '#96601A'; o.fillText('U', x, y); uRef.current = { x: x + wU / 2, y }; x += wU
+    o.font = uFont; o.fillStyle = '#E87BA0'; o.fillText('U', x, y); uRef.current = { x: x + wU / 2, y }; x += wU
     o.font = cakeFont; o.fillStyle = '#3A2A1E'; o.fillText(' WISH', x, y)
 
     const img = o.getImageData(0, 0, w, h).data

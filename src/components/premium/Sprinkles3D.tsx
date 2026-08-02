@@ -8,8 +8,8 @@ import * as THREE from 'three'
 // when it's worth showing (desktop, motion allowed).
 
 const COUNT = 90
-// Sampled from the brand photography: gold, peach rose, blush, sage, cream.
-const PALETTE = ['#96601A', '#F2C9AE', '#EFA9BC', '#8FA876', '#F7EDE1', '#C79A3E']
+// Straight off the logo and its photography: rose pink, gold, peach, sage, cream.
+const PALETTE = ['#E87BA0', '#96601A', '#F2C9AE', '#EFA9BC', '#8FA876', '#C79A3E']
 
 function Field() {
   const mesh = useRef<THREE.InstancedMesh>(null)

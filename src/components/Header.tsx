@@ -47,8 +47,8 @@ export default function Header() {
     >
       <div className="border-b border-border/60 bg-background/95 shadow-soft">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 sm:px-8" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
-          <Link to="/" className="font-display text-xl font-bold text-primary">
-            CakeUWish
+          <Link to="/" className="font-display text-xl font-bold text-primary" aria-label="CakeUWish home">
+            Cake<span className="text-pink-deep">U</span>Wish
           </Link>
           <nav aria-label="Main" className="hidden items-center gap-7 md:flex">
             {LINKS.map((l) => (

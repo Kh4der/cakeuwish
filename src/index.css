@@ -22,7 +22,13 @@
   --color-espresso: #3A2A1E;
   --color-gold: #96601A;
   --color-gold-soft: #C79A3E;         /* decorative-only brighter gold */
-  --color-blush: #EFA9BC;             /* logo cake pink — decorative only */
+  /* The logo's rose pink. `pink` is the true logo tone (decorative — 2.5:1, it
+     must never carry small text); `pink-deep` is the darkened sibling that IS
+     safe for text and buttons (4.9:1 on background, 5.3:1 white-on-pink). */
+  --color-pink: #E87BA0;
+  --color-pink-deep: #BE3A66;
+  --color-pink-hover: #A82753;
+  --color-blush: #EFA9BC;             /* palest pink — decorative only */
   --color-peach: #F2C9AE;             /* rose petals — decorative only */
   --color-sage: #8FA876;              /* foliage — decorative only */
   --color-whatsapp: #25D366;
@@ -127,6 +133,8 @@ html.lenis body {
   transition-delay: var(--reveal-delay, 0ms);
 }
 [data-reveal].revealed { opacity: 1; transform: none; }
+/* Already scrolled past on mount — appear immediately, don't animate in. */
+[data-reveal].reveal-instant { transition: none; }
 .reveal-mask { display: inline-block; overflow: hidden; vertical-align: bottom; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -203,8 +211,12 @@ html.lenis body {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-/* Hairline gold accent rule, used under section eyebrows */
-.gold-rule { height: 1px; background: linear-gradient(90deg, transparent, var(--color-accent), transparent); }
+/* Hairline brand rule under section eyebrows: the logo's gold melting into its
+   rose pink, so the two brand colours appear together on every page. */
+.gold-rule {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-accent) 35%, var(--color-pink) 70%, transparent);
+}
 @media (prefers-reduced-motion: no-preference) {
   .glass, .glass-dark { transition: background .4s ease, box-shadow .4s ease; }
 }

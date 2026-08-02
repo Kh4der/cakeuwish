@@ -75,7 +75,9 @@ export default function Footer() {
 
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
         <div>
-          <div className="font-display text-2xl font-bold text-cream">CakeUWish</div>
+          <div className="font-display text-2xl font-bold text-cream">
+            Cake<span className="text-pink">U</span>Wish
+          </div>
           <div className="gold-rule mt-3 max-w-[6rem] opacity-70" aria-hidden="true" />
           <p className="mt-3 text-sm">Chantilly, VA · Home-baked in Northern Virginia</p>
           <p className="mt-1 text-sm">

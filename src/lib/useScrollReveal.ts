@@ -26,6 +26,8 @@ export function useScrollReveal(key?: unknown) {
         entries.forEach((e) => {
           if (e.isIntersecting) {
             e.target.classList.add('revealed')
+            // Reveal is one-way: unobserving means scrolling back past an
+            // element never replays its animation.
             io.unobserve(e.target)
           }
         })
@@ -33,7 +35,17 @@ export function useScrollReveal(key?: unknown) {
       { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
     )
     const observe = () =>
-      document.querySelectorAll('[data-reveal]:not(.revealed)').forEach((el) => io.observe(el))
+      document.querySelectorAll('[data-reveal]:not(.revealed)').forEach((el) => {
+        // Anything already scrolled PAST (deep link, hash jump, back-navigation
+        // scroll restoration) would otherwise sit at opacity 0 forever, because
+        // it never re-enters the viewport going down. Show it at once, with no
+        // animation — there is nothing to animate into view.
+        if (el.getBoundingClientRect().bottom < 0) {
+          el.classList.add('reveal-instant', 'revealed')
+          return
+        }
+        io.observe(el)
+      })
     observe()
     // Re-scan whenever the DOM grows (debounced to one scan per frame).
     let raf = 0

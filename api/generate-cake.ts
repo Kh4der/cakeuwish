@@ -66,6 +66,16 @@ const ADDON_PHRASES: Record<string, string> = {
 
 const TIERS = new Set(['1', '2', '3', '4', '5'])
 const SHAPES = new Set(['round', 'square'])
+
+// Spelled out AND repeated as a digit — diffusion models count poorly, and
+// stating it both ways measurably improves how often the tier count lands.
+const TIER_PHRASE: Record<string, string> = {
+  '1': 'A single-tier',
+  '2': 'A two-tier (2 tiers stacked, smaller on top)',
+  '3': 'A three-tier (3 tiers stacked, each smaller than the one below)',
+  '4': 'A four-tier (4 tiers stacked, each smaller than the one below)',
+  '5': 'A five-tier (5 tiers stacked, each smaller than the one below)',
+}
 const STYLES = new Set([
   'smooth buttercream',
   'textured buttercream',
@@ -231,17 +241,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Fixed template — the customer's words can only ever DESCRIBE A CAKE: they
-  // are injected as the decoration brief of a cake photograph, nothing else.
+  // are injected as the decoration of a cake photograph, nothing else.
+  //
+  // KEPT DELIBERATELY SHORT. Fast diffusion models weight the opening tokens
+  // heavily and effectively ignore the tail, so a wordy safety preamble used to
+  // bury the customer's own choices — colours and add-ons simply never showed
+  // up in the render. Structure first, then decoration, then the guardrails.
   const prompt = [
-    `Professional bakery product photograph of a single ${tiers}-tier ${shape} custom celebration cake with a ${style} finish.`,
-    tiers !== '1' &&
-      `The tiers are stacked directly on top of each other, each tier smaller than the one below, all ${shape} in plan view.`,
-    `The customer's decoration brief, to be expressed purely as cake decoration (piping, sugar work, edible decorations ON the cake — never scenes, people, or objects outside the cake): "${description}".`,
-    colors && `Color palette: ${colors}.`,
-    occasion && `The cake is for: ${occasion}.`,
-    addonPhrases.length > 0 && `Also include: ${addonPhrases.join('; ')}.`,
-    'The image must contain ONLY the cake on a simple cake stand against a soft, warm cream studio background with gentle natural light.',
-    'No people, no hands, no text overlays, no logos, no background props beyond the stand (matching cupcakes beside the stand are the only allowed exception). Elegant, luxurious, realistic, appetizing.',
+    `${TIER_PHRASE[tiers] ?? TIER_PHRASE['1']} ${shape} cake, ${style} finish.`,
+    `Decorated with ${description}.`,
+    colors && `Colors: ${colors}.`,
+    occasion && `For a ${occasion}.`,
+    addonPhrases.length > 0 && `With ${addonPhrases.join(' and ')}.`,
+    'Professional bakery photo, cake alone on a plain stand, cream background.',
+    'No people, no text, no logos.',
   ]
     .filter(Boolean)
     .join(' ')

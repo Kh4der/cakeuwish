@@ -35,8 +35,12 @@ void main(){
   vec3 caramel  = vec3(0.949, 0.788, 0.682); // #F2C9AE peach rose
   vec3 gold     = vec3(0.588, 0.376, 0.102); // #96601A logo gold
 
+  vec3 rose     = vec3(0.910, 0.482, 0.627); // #E87BA0 logo pink
+
   vec3 col = mix(cream, champagne, smoothstep(0.25, 0.75, flow));
   col = mix(col, caramel, smoothstep(0.62, 0.95, flow) * 0.35);
+  // a whisper of the logo's pink through the warm passages
+  col = mix(col, rose, smoothstep(0.78, 1.0, flow) * 0.22);
   float vein = smoothstep(0.475, 0.5, flow) - smoothstep(0.5, 0.525, flow);
   col = mix(col, gold, vein * 0.16);
   // gentle vignette toward the page background so edges dissolve
