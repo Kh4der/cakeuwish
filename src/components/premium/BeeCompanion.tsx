@@ -149,7 +149,15 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
     const centre = box.getCenter(new THREE.Vector3())
     const scale = 0.85 / (size.y || 1)
 
-    return { holder, scale, centre, wings, gaze, joints: { armL, armR, legL, legR, mouth, antL, antR } }
+    return {
+      holder,
+      scale,
+      centre,
+      wings,
+      gaze,
+      joints: { armL, armR, legL, legR, mouth, antL, antR },
+      mouthBase: mouth ? mouth.position.clone() : null,
+    }
   }, [scene])
 
   useFrame(({ clock }, delta) => {
@@ -225,10 +233,14 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
     // CHEW when it settles by the cakes (a bakery bee cannot help itself):
     // eases in while idle, eases out the moment the chase resumes.
     chewAmp.current = THREE.MathUtils.lerp(chewAmp.current, chasing ? 0 : 1, 1 - Math.pow(chasing ? 0.005 : 0.05, dt))
-    if (mouth) {
-      const bite = Math.max(0, Math.sin(t * 8.5)) * chewAmp.current
-      mouth.scale.z = 1 - bite * 0.45
-      mouth.scale.x = 1 + bite * 0.12 // cartoon squash-and-stretch
+    if (mouth && rig.mouthBase) {
+      // The mouth mesh is a thin smile arc — squashing it was invisible at
+      // 137px. Chewing must OPEN it: stretch the arc tall into an "O", narrow
+      // it a touch, and drop the jaw, at a munching pace slow enough to read.
+      const bite = Math.max(0, Math.sin(t * 5.2)) * chewAmp.current
+      mouth.scale.z = 1 + bite * 1.6 // opens tall
+      mouth.scale.x = 1 - bite * 0.18
+      mouth.position.z = rig.mouthBase.z - bite * 0.07 // jaw drops
     }
 
     // WAVE hello every few seconds while idling — one arm, three friendly swings
