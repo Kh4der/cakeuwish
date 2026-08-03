@@ -93,18 +93,16 @@ function BeeModel({
     // ── eyes follow the pointer (bones offset from their rest positions) ────
     const gx = THREE.MathUtils.clamp(pointer.x, -1, 1)
     const gy = THREE.MathUtils.clamp(pointer.y, -1, 1)
-    const ex = gx * rig.height * 0.016
-    const ey = gy * rig.height * 0.012
-    for (const [eye, rest] of [
-      [b.eyeL, rig.rest.eyeL],
-      [b.eyeR, rig.rest.eyeR],
-    ] as const) {
-      eye.position.x = THREE.MathUtils.lerp(eye.position.x, rest.x + ex, 1 - Math.pow(0.0005, dt))
-      eye.position.y = THREE.MathUtils.lerp(eye.position.y, rest.y + ey, 1 - Math.pow(0.0005, dt))
-    }
-    // the head turns a little toward the pointer too — sells the attention
-    b.head.rotation.y = THREE.MathUtils.lerp(b.head.rotation.y, gx * 0.16, 1 - Math.pow(0.002, dt))
-    b.head.rotation.x = THREE.MathUtils.lerp(b.head.rotation.x, -gy * 0.1, 1 - Math.pow(0.002, dt))
+    // Gaze: a small, SYMMETRIC slide. Both eyes get the identical offset and
+    // it is eased properly (the old factor was ~0.999 — a snap, not a lerp),
+    // so a flick of the pointer can no longer shove one eye into the face.
+    const ex = gx * rig.height * 0.012
+    const ey = gy * rig.height * 0.009
+    const gazeEase = 1 - Math.pow(0.004, dt)
+    b.eyeL.position.x = THREE.MathUtils.lerp(b.eyeL.position.x, rig.rest.eyeL.x + ex, gazeEase)
+    b.eyeL.position.y = THREE.MathUtils.lerp(b.eyeL.position.y, rig.rest.eyeL.y + ey, gazeEase)
+    b.eyeR.position.x = THREE.MathUtils.lerp(b.eyeR.position.x, rig.rest.eyeR.x + ex, gazeEase)
+    b.eyeR.position.y = THREE.MathUtils.lerp(b.eyeR.position.y, rig.rest.eyeR.y + ey, gazeEase)
 
     // ── chew in bursts while settled ────────────────────────────────────────
     chewAmp.current = THREE.MathUtils.lerp(
@@ -126,19 +124,33 @@ function BeeModel({
       waveUntil.current = t + 1.3
       nextWave.current = t + 9
     }
-    if (t < waveUntil.current) {
-      const env = Math.sin(((waveUntil.current - t) / 1.3) * Math.PI)
-      g.rotation.z += Math.sin(t * 9) * 0.16 * env
-      b.head.rotation.z = Math.sin(t * 9) * 0.12 * env
-    } else {
-      b.head.rotation.z = THREE.MathUtils.lerp(b.head.rotation.z, 0, 1 - Math.pow(0.002, dt))
-    }
+    const waving = t < waveUntil.current
+    const waveEnv = waving ? Math.sin(((waveUntil.current - t) / 1.3) * Math.PI) : 0
+    if (waving) g.rotation.z += Math.sin(t * 9) * 0.16 * waveEnv
 
-    // Antennae and hat are deliberately NOT separately boned — they ride the
-    // head rigidly. Giving them their own bones tore 1,445 hat vertices apart.
-    // The head's own tilt already gives them a lively sway.
-    const wobble = THREE.MathUtils.clamp(accelSm.current * 0.006, -0.09, 0.09)
-    b.head.rotation.z -= wobble
+    // ── head: ONE place, computed from scratch, then eased and clamped ──────
+    // Everything that wants to move the head contributes to a target here.
+    // The previous version mixed an assignment, a lerp and a `-=` across three
+    // blocks, so the wobble compounded frame over frame and could crank the
+    // head ~50° on a fast flick. Nothing accumulates now.
+    //
+    // Antennae and hat are NOT separately boned — they ride the head rigidly
+    // (their own bones tore 1,445 hat vertices apart), so the head's tilt is
+    // what gives them life. That also means the head must stay gentle.
+    const HEAD_YAW = 0.1 // was 0.16
+    const HEAD_PITCH = 0.07 // was 0.1
+    const HEAD_ROLL = 0.09
+    const targetYaw = THREE.MathUtils.clamp(gx * HEAD_YAW, -HEAD_YAW, HEAD_YAW)
+    const targetPitch = THREE.MathUtils.clamp(-gy * HEAD_PITCH, -HEAD_PITCH, HEAD_PITCH)
+    const targetRoll = THREE.MathUtils.clamp(
+      Math.sin(t * 9) * 0.12 * waveEnv - accelSm.current * 0.004,
+      -HEAD_ROLL,
+      HEAD_ROLL,
+    )
+    const headEase = 1 - Math.pow(0.004, dt)
+    b.head.rotation.y = THREE.MathUtils.lerp(b.head.rotation.y, targetYaw, headEase)
+    b.head.rotation.x = THREE.MathUtils.lerp(b.head.rotation.x, targetPitch, headEase)
+    b.head.rotation.z = THREE.MathUtils.lerp(b.head.rotation.z, targetRoll, headEase)
 
     // ── keep the hover target sitting exactly on the bee ────────────────────
     const hit = hitRef.current
