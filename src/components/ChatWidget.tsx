@@ -197,6 +197,16 @@ export default function ChatWidget() {
       active = false
     }
   }, [])
+  // The bee's "Ask me" bubble opens this widget from anywhere on the page.
+  // (When Chatwoot is active the bubble talks to $chatwoot directly instead.)
+  useEffect(() => {
+    const openFromBee = () => {
+      setShow(true)
+      setOpen(true)
+    }
+    window.addEventListener('cuw:open-chat', openFromBee)
+    return () => window.removeEventListener('cuw:open-chat', openFromBee)
+  }, [])
   const [messages, setMessages] = useState<ChatMsg[]>(loadTranscript)
   const [input, setInput] = useState('')
   const [pending, setPending] = useState(false)
