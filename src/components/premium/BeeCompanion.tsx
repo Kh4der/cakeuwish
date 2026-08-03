@@ -39,9 +39,11 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
 
   const vel = useRef(new THREE.Vector3())
   const bank = useRef(0)
-  // liveliness state: chew eases in/out, waves are scheduled, accel is smoothed
+  // liveliness state: chews and waves are scheduled bursts, accel is smoothed
   const chewAmp = useRef(0)
-  const nextWave = useRef(4)
+  const nextChew = useRef(3)
+  const chewUntil = useRef(-1)
+  const nextWave = useRef(6)
   const waveUntil = useRef(-1)
   const prevVelX = useRef(0)
   const accelSm = useRef(0)
@@ -230,39 +232,49 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
     // breathing — the softest cue that something is alive
     g.scale.setScalar(1 + Math.sin(t * 2.4) * 0.01)
 
-    // CHEW when it settles by the cakes (a bakery bee cannot help itself):
-    // eases in while idle, eases out the moment the chase resumes.
+    // CHEW in short bursts while settled by the cakes: a few munches every
+    // several seconds, then back to the resting smile. Continuous chewing read
+    // as "the mouth is always open and just pulsing" — a burst with a clean
+    // return to rest reads as actually eating.
     chewAmp.current = THREE.MathUtils.lerp(chewAmp.current, chasing ? 0 : 1, 1 - Math.pow(chasing ? 0.005 : 0.05, dt))
+    if (!chasing && t > nextChew.current) {
+      chewUntil.current = t + 1.6 // ~3 munches
+      nextChew.current = t + 7
+    }
     if (mouth && rig.mouthBase) {
-      // The mouth mesh is a thin smile arc — squashing it was invisible at
-      // 137px. Chewing must OPEN it: stretch the arc tall into an "O", narrow
-      // it a touch, and drop the jaw, at a munching pace slow enough to read.
-      const bite = Math.max(0, Math.sin(t * 5.2)) * chewAmp.current
-      mouth.scale.z = 1 + bite * 1.6 // opens tall
-      mouth.scale.x = 1 - bite * 0.18
-      mouth.position.z = rig.mouthBase.z - bite * 0.07 // jaw drops
+      const inBurst = t < chewUntil.current
+      const burstEnv = inBurst ? Math.sin((1 - (chewUntil.current - t) / 1.6) * Math.PI) : 0
+      const bite = Math.max(0, Math.sin(t * 11)) * burstEnv * chewAmp.current
+      mouth.scale.z = 1 + bite * 0.9
+      mouth.scale.x = 1 - bite * 0.14
+      mouth.position.z = rig.mouthBase.z - bite * 0.05 // jaw drops
     }
 
-    // WAVE hello every few seconds while idling — one arm, three friendly swings
+    // WAVE hello every few seconds while idling — one arm, three friendly
+    // swings — offset from the chew schedule so it never talks with its
+    // mouth full.
     if (!chasing && t > nextWave.current) {
       waveUntil.current = t + 1.3
-      nextWave.current = t + 5.5
+      nextWave.current = t + 9
     }
     const waving = t < waveUntil.current
     const waveEnv = waving ? Math.sin(((waveUntil.current - t) / 1.3) * Math.PI) : 0
 
-    // ARMS: trail the flight like streamers when chasing; sway gently when
-    // idle; the wave overrides the right arm with big hello swings.
-    const armSwing = Math.sin(t * (6 + zip * 6)) * (0.06 + zip * 0.22)
-    const armTrail = THREE.MathUtils.clamp(-accelSm.current * 0.03, -0.3, 0.3)
-    if (armL) armL.rotation.y = armSwing + armTrail
-    if (armR) armR.rotation.y = waving ? Math.sin(t * 11) * 0.7 * waveEnv : -armSwing + armTrail
-    if (armR && waving) armR.rotation.x = -0.25 * waveEnv // raise the waving arm toward you
+    // ARMS: dangling pendulums, not paddles. A slow, small idle sway plus a
+    // lag behind acceleration; the wave overrides the right arm. The old
+    // 6-12Hz oscillation read as a second pair of wings.
+    const armSway = Math.sin(t * 1.6) * 0.045
+    const armTrail = THREE.MathUtils.clamp(-accelSm.current * 0.05, -0.35, 0.35)
+    if (armL) armL.rotation.y = armSway + armTrail
+    if (armR) armR.rotation.y = waving ? Math.sin(t * 11) * 0.7 * waveEnv : -armSway + armTrail
+    if (armR) armR.rotation.x = waving ? -0.25 * waveEnv : 0 // raise only to wave
 
-    // LEGS: happy alternating scissor-kicks, faster and wider when it hurries.
-    const kick = 0.08 + zip * 0.3
-    if (legL) legL.rotation.y = Math.sin(t * (7 + zip * 5)) * kick
-    if (legR) legR.rotation.y = -Math.sin(t * (7 + zip * 5) + 0.4) * kick
+    // LEGS: hang and swing slowly, trailing the motion — never faster than a
+    // pendulum would. Slightly more swing when hurrying, still slow.
+    const legSway = 0.05 + zip * 0.07
+    const legTrail = THREE.MathUtils.clamp(accelSm.current * 0.04, -0.25, 0.25)
+    if (legL) legL.rotation.y = Math.sin(t * 1.9) * legSway + legTrail
+    if (legR) legR.rotation.y = Math.sin(t * 1.9 + 0.9) * legSway + legTrail
 
     // ANTENNAE: spring against acceleration and keep a soft idle wobble.
     const antWobble = THREE.MathUtils.clamp(accelSm.current * 0.02, -0.25, 0.25)
