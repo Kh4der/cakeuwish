@@ -96,8 +96,10 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
       if (white) {
         const wb = new THREE.Box3().setFromObject(white)
         const ws = wb.getSize(new THREE.Vector3())
-        rx = ws.x * 0.18
-        ry = ws.y * 0.16
+        // Generous travel — face-on, the gaze IS the interaction, so it should
+        // be unmistakable that the eyes are following the pointer.
+        rx = ws.x * 0.24
+        ry = ws.y * 0.22
       }
       return { parts, rx, ry }
     })
@@ -107,7 +109,11 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
       .map((n) => byName(n))
       .filter(Boolean) as THREE.Mesh[]
 
-    return { root, scale: 0.5 / maxDim, centre, faceSign, wings, gaze, limbs }
+    // Size by HEIGHT, not the longest axis: the longest axis is the body's
+    // front-to-back depth, which points at the camera now that the bee faces
+    // us — normalising on it made the visible bee tiny.
+    void maxDim
+    return { root, scale: 0.8 / (size.y || 1), centre, faceSign, wings, gaze, limbs }
   }, [scene])
 
   useFrame(({ clock }, delta) => {
@@ -129,10 +135,11 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
     vel.current.multiplyScalar(1 - Math.min(1, damping * dt))
     g.position.addScaledVector(vel.current, dt)
 
-    // 3/4 base facing (so the face shows), leaning into the direction of travel.
+    // Face the viewer straight on — the eyes are the whole show. Only a whisper
+    // of lean into the direction of travel so flight still reads as alive.
     const speed = vel.current.length()
-    const baseYaw = rig.faceSign > 0 ? -0.55 : Math.PI - 0.55
-    const lean = THREE.MathUtils.clamp(vel.current.x * 0.22, -0.6, 0.6)
+    const baseYaw = rig.faceSign > 0 ? 0 : Math.PI
+    const lean = THREE.MathUtils.clamp(vel.current.x * 0.09, -0.22, 0.22)
     g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, baseYaw + lean * rig.faceSign, 1 - Math.pow(0.001, dt))
     const targetBank = THREE.MathUtils.clamp(-vel.current.x * 0.14, -0.45, 0.45)
     bank.current = THREE.MathUtils.lerp(bank.current, targetBank, 1 - Math.pow(0.002, dt))
