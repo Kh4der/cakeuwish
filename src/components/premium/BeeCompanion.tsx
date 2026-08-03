@@ -39,6 +39,12 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
 
   const vel = useRef(new THREE.Vector3())
   const bank = useRef(0)
+  // liveliness state: chew eases in/out, waves are scheduled, accel is smoothed
+  const chewAmp = useRef(0)
+  const nextWave = useRef(4)
+  const waveUntil = useRef(-1)
+  const prevVelX = useRef(0)
+  const accelSm = useRef(0)
 
   // One-time surgery on the loaded scene. MEASURED FACTS about this model:
   // it is built LYING ON ITS BACK — body along z (head +z, feet -z), face
@@ -87,10 +93,45 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
       return { parts, rx, rz }
     })
 
-    // Limbs bob gently by translation (origin pivots make rotation unusable).
-    const limbs = ['Arm -1', 'Arm 1', 'Hand -1', 'Hand 1', 'Leg -1', 'Leg 1', 'Foot -1', 'Foot 1']
-      .map((n) => byName(n))
-      .filter(Boolean) as THREE.Mesh[]
+    // Joints. Every part is an origin-pivoted mesh, so real articulation means
+    // building joint groups: a group is placed at the anatomical pivot (still
+    // in model space, root untransformed) and the meshes are attach()ed so they
+    // keep their world placement. Rotating the group then bends the joint.
+    const joint = (names: string[], pivotOf: (b: THREE.Box3) => THREE.Vector3) => {
+      const meshes = names.map((n) => byName(n)).filter(Boolean) as THREE.Mesh[]
+      if (!meshes.length) return null
+      const b = new THREE.Box3()
+      meshes.forEach((m) => b.expandByObject(m))
+      const grp = new THREE.Group()
+      grp.position.copy(pivotOf(b))
+      root.add(grp)
+      meshes.forEach((m) => grp.attach(m))
+      return grp
+    }
+    const mid = (b: THREE.Box3) => b.getCenter(new THREE.Vector3())
+    // Shoulder: the arm's inner edge (toward x=0), at its top.
+    const shoulder = (b: THREE.Box3) => {
+      const c = mid(b)
+      return new THREE.Vector3(Math.abs(b.min.x) < Math.abs(b.max.x) ? b.min.x : b.max.x, c.y, b.max.z)
+    }
+    // Hip: top of the leg (max z in model space = nearest the body).
+    const hip = (b: THREE.Box3) => {
+      const c = mid(b)
+      return new THREE.Vector3(c.x, c.y, b.max.z)
+    }
+    // Antenna base: bottom of the stem (min z), on the head.
+    const antennaBase = (b: THREE.Box3) => {
+      const c = mid(b)
+      return new THREE.Vector3(c.x, c.y, b.min.z)
+    }
+    const armL = joint(['Arm -1', 'Hand -1'], shoulder)
+    const armR = joint(['Arm 1', 'Hand 1'], shoulder)
+    const legL = joint(['Leg -1', 'Foot -1'], hip)
+    const legR = joint(['Leg 1', 'Foot 1'], hip)
+    // Jaw: mouth + tongue squash from the mouth's own centre for the chew.
+    const mouth = joint(['Happy mouth', 'Tongue'], mid)
+    const antL = joint(['Antenna stem -1', 'Antenna tip -1'], antennaBase)
+    const antR = joint(['Antenna stem 1', 'Antenna tip 1'], antennaBase)
 
     // Stand the model up: inner group lifts the head from +z to +y; outer turns
     // the face (which lands on -z) around to the camera. Nested groups keep the
@@ -108,7 +149,7 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
     const centre = box.getCenter(new THREE.Vector3())
     const scale = 0.85 / (size.y || 1)
 
-    return { holder, scale, centre, wings, gaze, limbs }
+    return { holder, scale, centre, wings, gaze, joints: { armL, armR, legL, legR, mouth, antL, antR } }
   }, [scene])
 
   useFrame(({ clock }, delta) => {
@@ -165,10 +206,56 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
       }
     }
 
-    // limbs sway softly, out of phase (model z = screen vertical once standing)
-    rig.limbs.forEach((m, i) => {
-      m.position.z = Math.sin(t * 5 + i * 1.3) * 0.012
-    })
+    // ── whole-body liveliness ───────────────────────────────────────────────
+    // Axis map once standing: joint rotation about local y swings in the screen
+    // plane; local x nods toward/away from the camera; mouth scale.z is a
+    // vertical squash on screen.
+    const { armL, armR, legL, legR, mouth, antL, antR } = rig.joints
+    const chasing = target.current.chasing
+    const zip = Math.min(1, speed * 0.45) // 0 hovering → 1 hurrying
+
+    // smoothed horizontal acceleration — antennae and arms lag behind it
+    const ax = (vel.current.x - prevVelX.current) / Math.max(dt, 1e-4)
+    prevVelX.current = vel.current.x
+    accelSm.current = THREE.MathUtils.lerp(accelSm.current, ax, 1 - Math.pow(0.001, dt))
+
+    // breathing — the softest cue that something is alive
+    g.scale.setScalar(1 + Math.sin(t * 2.4) * 0.01)
+
+    // CHEW when it settles by the cakes (a bakery bee cannot help itself):
+    // eases in while idle, eases out the moment the chase resumes.
+    chewAmp.current = THREE.MathUtils.lerp(chewAmp.current, chasing ? 0 : 1, 1 - Math.pow(chasing ? 0.005 : 0.05, dt))
+    if (mouth) {
+      const bite = Math.max(0, Math.sin(t * 8.5)) * chewAmp.current
+      mouth.scale.z = 1 - bite * 0.45
+      mouth.scale.x = 1 + bite * 0.12 // cartoon squash-and-stretch
+    }
+
+    // WAVE hello every few seconds while idling — one arm, three friendly swings
+    if (!chasing && t > nextWave.current) {
+      waveUntil.current = t + 1.3
+      nextWave.current = t + 5.5
+    }
+    const waving = t < waveUntil.current
+    const waveEnv = waving ? Math.sin(((waveUntil.current - t) / 1.3) * Math.PI) : 0
+
+    // ARMS: trail the flight like streamers when chasing; sway gently when
+    // idle; the wave overrides the right arm with big hello swings.
+    const armSwing = Math.sin(t * (6 + zip * 6)) * (0.06 + zip * 0.22)
+    const armTrail = THREE.MathUtils.clamp(-accelSm.current * 0.03, -0.3, 0.3)
+    if (armL) armL.rotation.y = armSwing + armTrail
+    if (armR) armR.rotation.y = waving ? Math.sin(t * 11) * 0.7 * waveEnv : -armSwing + armTrail
+    if (armR && waving) armR.rotation.x = -0.25 * waveEnv // raise the waving arm toward you
+
+    // LEGS: happy alternating scissor-kicks, faster and wider when it hurries.
+    const kick = 0.08 + zip * 0.3
+    if (legL) legL.rotation.y = Math.sin(t * (7 + zip * 5)) * kick
+    if (legR) legR.rotation.y = -Math.sin(t * (7 + zip * 5) + 0.4) * kick
+
+    // ANTENNAE: spring against acceleration and keep a soft idle wobble.
+    const antWobble = THREE.MathUtils.clamp(accelSm.current * 0.02, -0.25, 0.25)
+    if (antL) antL.rotation.y = Math.sin(t * 3.1) * 0.09 - antWobble
+    if (antR) antR.rotation.y = Math.sin(t * 3.1 + 1.4) * 0.09 - antWobble
   })
 
   return (
