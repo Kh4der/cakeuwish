@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
-import { buildBee, type BeeParts } from './beeMesh'
+import { autoRig, type BeeRig } from './beeRig'
 
-// The CakeUWish baker bee — built procedurally (see beeMesh.ts) to match the
-// reference render, with every part animatable. It chases the pointer with
-// spring physics, banks into turns, and drifts over to the cake on stage when
-// you rest. Its eyes follow the pointer, its wings flap from their roots, it
-// munches in bursts beside the cakes, waves hello, and wears an "Ask me"
-// speech bubble at its mouth that opens the chat.
+// The CakeUWish baker bee: the supplied GLB, auto-rigged at load (see beeRig.ts)
+// so a fused, boneless model can still act. It chases the pointer with spring
+// physics, drifts to the cake on stage when you rest, follows you with its eyes,
+// flaps, chews in bursts, waves, and carries an "Ask me!" bubble at its mouth
+// that opens the site's chat.
 //
 // Import ONLY via React.lazy: three.js must stay out of every other chunk.
+
+const MODEL = '/models/bee.glb'
 
 interface Target {
   x: number
@@ -27,6 +29,7 @@ function BeeModel({
 }) {
   const group = useRef<THREE.Group>(null)
   const { viewport, pointer, camera, size } = useThree()
+  const { scene } = useGLTF(MODEL)
 
   const vel = useRef(new THREE.Vector3())
   const bank = useRef(0)
@@ -39,27 +42,19 @@ function BeeModel({
   const accelSm = useRef(0)
   const mouthWorld = useRef(new THREE.Vector3())
 
-  const rig = useMemo(() => {
-    const parts: BeeParts = buildBee()
-    const box = new THREE.Box3().setFromObject(parts.root)
-    const sizeV = box.getSize(new THREE.Vector3())
-    const centre = box.getCenter(new THREE.Vector3())
-    return {
-      ...parts,
-      scale: 0.85 / (sizeV.y || 1),
-      centre,
-      wingBase: parts.wings.map((w) => w.pivot.rotation.z),
-      antBase: parts.antennae.map((a) => a.rotation.z),
-    }
-  }, [])
+  const rig = useMemo<BeeRig & { scale: number }>(() => {
+    const r = autoRig(scene)
+    return { ...r, scale: 0.9 / (r.height || 1) }
+  }, [scene])
 
   useFrame(({ clock }, delta) => {
     const g = group.current
     if (!g) return
     const dt = Math.min(delta, 0.05)
     const t = clock.elapsedTime
+    const b = rig.bones
 
-    // ── flight: spring toward the target with a wandering figure-eight ──────
+    // ── flight ──────────────────────────────────────────────────────────────
     const tx = (target.current.x / window.innerWidth - 0.5) * viewport.width
     const ty = -(target.current.y / window.innerHeight - 0.5) * viewport.height
     const wanderX = Math.sin(t * 0.9) * 0.42 + Math.sin(t * 2.3) * 0.12
@@ -67,10 +62,8 @@ function BeeModel({
     const desired = new THREE.Vector3(tx + wanderX, ty + wanderY, 0)
     const toTarget = desired.clone().sub(g.position)
     const chasing = target.current.chasing
-    const stiffness = chasing ? 9 : 3.4
-    const damping = chasing ? 3.4 : 2.6
-    vel.current.addScaledVector(toTarget, stiffness * dt)
-    vel.current.multiplyScalar(1 - Math.min(1, damping * dt))
+    vel.current.addScaledVector(toTarget, (chasing ? 9 : 3.4) * dt)
+    vel.current.multiplyScalar(1 - Math.min(1, (chasing ? 3.4 : 2.6) * dt))
     g.position.addScaledVector(vel.current, dt)
 
     const speed = vel.current.length()
@@ -81,87 +74,90 @@ function BeeModel({
     g.rotation.z = bank.current
     g.rotation.x = THREE.MathUtils.clamp(vel.current.y * 0.08, -0.3, 0.3)
     g.position.z = Math.sin(t * 6) * 0.05
+    g.scale.setScalar(rig.scale * (1 + Math.sin(t * 2.4) * 0.01)) // breathing
 
-    // smoothed horizontal acceleration for trailing limbs/antennae
     const ax = (vel.current.x - prevVelX.current) / Math.max(dt, 1e-4)
     prevVelX.current = vel.current.x
     accelSm.current = THREE.MathUtils.lerp(accelSm.current, ax, 1 - Math.pow(0.001, dt))
 
-    // breathing
-    g.scale.setScalar(1 + Math.sin(t * 2.4) * 0.01)
+    // ── wings flap from their roots ─────────────────────────────────────────
+    // Amplitude stays modest on purpose: past ~0.3 the wings tuck behind the
+    // body and vanish from a front-on view (verified in the snapshot rig).
+    const beat = 26 + Math.min(14, speed * 4)
+    const flap = Math.sin(t * beat)
+    b.wingL.rotation.z = flap * 0.28
+    b.wingR.rotation.z = -flap * 0.28
+    b.wingL.rotation.x = flap * 0.12
+    b.wingR.rotation.x = flap * 0.12
 
-    // ── wings: flap around their resting sweep, faster when hurrying ────────
-    const beat = 30 + Math.min(16, speed * 4)
-    rig.wings.forEach((w, i) => {
-      const phase = w.lower ? -0.6 : 0
-      w.pivot.rotation.z = rig.wingBase[i] + w.sign * Math.sin(t * beat + phase) * (w.lower ? 0.35 : 0.5)
-    })
-
-    // ── eyes follow the pointer ─────────────────────────────────────────────
+    // ── eyes follow the pointer (bones offset from their rest positions) ────
     const gx = THREE.MathUtils.clamp(pointer.x, -1, 1)
     const gy = THREE.MathUtils.clamp(pointer.y, -1, 1)
-    for (const eye of rig.eyes) {
-      eye.iris.position.x = THREE.MathUtils.lerp(eye.iris.position.x, gx * eye.rx, 1 - Math.pow(0.0005, dt))
-      eye.iris.position.y = THREE.MathUtils.lerp(eye.iris.position.y, gy * eye.ry, 1 - Math.pow(0.0005, dt))
+    const ex = gx * rig.height * 0.016
+    const ey = gy * rig.height * 0.012
+    for (const [eye, rest] of [
+      [b.eyeL, rig.rest.eyeL],
+      [b.eyeR, rig.rest.eyeR],
+    ] as const) {
+      eye.position.x = THREE.MathUtils.lerp(eye.position.x, rest.x + ex, 1 - Math.pow(0.0005, dt))
+      eye.position.y = THREE.MathUtils.lerp(eye.position.y, rest.y + ey, 1 - Math.pow(0.0005, dt))
     }
+    // the head turns a little toward the pointer too — sells the attention
+    b.head.rotation.y = THREE.MathUtils.lerp(b.head.rotation.y, gx * 0.16, 1 - Math.pow(0.002, dt))
+    b.head.rotation.x = THREE.MathUtils.lerp(b.head.rotation.x, -gy * 0.1, 1 - Math.pow(0.002, dt))
 
-    // ── chew in bursts while settled (rest state is the open smile) ─────────
-    chewAmp.current = THREE.MathUtils.lerp(chewAmp.current, chasing ? 0 : 1, 1 - Math.pow(chasing ? 0.005 : 0.05, dt))
+    // ── chew in bursts while settled ────────────────────────────────────────
+    chewAmp.current = THREE.MathUtils.lerp(
+      chewAmp.current,
+      chasing ? 0 : 1,
+      1 - Math.pow(chasing ? 0.005 : 0.05, dt),
+    )
     if (!chasing && t > nextChew.current) {
       chewUntil.current = t + 1.6
       nextChew.current = t + 7
     }
-    const inBurst = t < chewUntil.current
-    const burstEnv = inBurst ? Math.sin((1 - (chewUntil.current - t) / 1.6) * Math.PI) : 0
-    const bite = Math.max(0, Math.sin(t * 11)) * burstEnv * chewAmp.current
-    rig.mouth.scale.y = 1 - bite * 0.55 // munch = the open mouth closing
-    rig.mouth.scale.x = 1 + bite * 0.15
+    const burst = t < chewUntil.current ? Math.sin((1 - (chewUntil.current - t) / 1.6) * Math.PI) : 0
+    const bite = Math.max(0, Math.sin(t * 10)) * burst * chewAmp.current
+    b.mouth.position.y = rig.rest.mouth.y - bite * rig.height * 0.02
+    b.mouth.scale.set(1 + bite * 0.18, 1 - bite * 0.3, 1)
 
-    // ── wave hello while idling (offset from the chew schedule) ─────────────
+    // ── wave: the whole body tips and bobs a hello ──────────────────────────
     if (!chasing && t > nextWave.current) {
       waveUntil.current = t + 1.3
       nextWave.current = t + 9
     }
-    const waving = t < waveUntil.current
-    const waveEnv = waving ? Math.sin(((waveUntil.current - t) / 1.3) * Math.PI) : 0
+    if (t < waveUntil.current) {
+      const env = Math.sin(((waveUntil.current - t) / 1.3) * Math.PI)
+      g.rotation.z += Math.sin(t * 9) * 0.16 * env
+      b.head.rotation.z = Math.sin(t * 9) * 0.12 * env
+    } else {
+      b.head.rotation.z = THREE.MathUtils.lerp(b.head.rotation.z, 0, 1 - Math.pow(0.002, dt))
+    }
 
-    // ── arms: pendulum sway + acceleration trail; right arm waves ───────────
-    const armSway = Math.sin(t * 1.6) * 0.05
-    const armTrail = THREE.MathUtils.clamp(-accelSm.current * 0.04, -0.3, 0.3)
-    rig.armL.rotation.z = armSway + armTrail
-    rig.armR.rotation.z = waving ? -0.9 * waveEnv + Math.sin(t * 11) * 0.45 * waveEnv : -armSway + armTrail
-    rig.armR.rotation.x = waving ? -0.3 * waveEnv : 0
+    // ── antennae spring against acceleration ────────────────────────────────
+    const wobble = THREE.MathUtils.clamp(accelSm.current * 0.02, -0.3, 0.3)
+    b.antL.rotation.z = Math.sin(t * 3.1) * 0.08 - wobble
+    b.antR.rotation.z = Math.sin(t * 3.1 + 1.4) * 0.08 - wobble
 
-    // ── feet dangle slowly, antennae spring against acceleration ────────────
-    rig.feet.forEach((f, i) => {
-      f.rotation.x = Math.sin(t * 1.9 + i * 0.9) * 0.12
-    })
-    const antWobble = THREE.MathUtils.clamp(accelSm.current * 0.02, -0.25, 0.25)
-    rig.antennae.forEach((a, i) => {
-      a.rotation.z = rig.antBase[i] + Math.sin(t * 3.1 + i * 1.4) * 0.07 - antWobble
-    })
-    // the toque gets a tiny lag of its own — pastry physics
-    rig.hat.rotation.z = THREE.MathUtils.clamp(-accelSm.current * 0.008, -0.1, 0.1)
-
-    // ── keep the "Ask me" bubble pinned to the mouth ────────────────────────
+    // ── pin the "Ask me" bubble to the mouth ────────────────────────────────
     const bubble = bubbleRef.current
     if (bubble) {
-      rig.mouth.getWorldPosition(mouthWorld.current)
-      const p = mouthWorld.current.clone().project(camera)
-      const px = (p.x * 0.5 + 0.5) * size.width
-      const py = (-p.y * 0.5 + 0.5) * size.height
-      bubble.style.transform = `translate(${Math.round(px)}px, ${Math.round(py)}px)`
+      b.mouth.getWorldPosition(mouthWorld.current)
+      const p = mouthWorld.current.project(camera)
+      bubble.style.transform = `translate(${Math.round((p.x * 0.5 + 0.5) * size.width)}px, ${Math.round(
+        (-p.y * 0.5 + 0.5) * size.height,
+      )}px)`
     }
   })
 
   return (
     <group ref={group}>
-      <group scale={rig.scale} position={rig.centre.clone().multiplyScalar(-rig.scale).toArray()}>
-        <primitive object={rig.root} />
-      </group>
+      <primitive object={rig.skinned} position={rig.centre.clone().multiplyScalar(-1).toArray()} />
     </group>
   )
 }
+
+useGLTF.preload(MODEL)
 
 /** Open whichever chat this deployment runs: Chatwoot bubble or built-in widget. */
 function openChat() {
@@ -191,12 +187,10 @@ export default function BeeCompanion() {
       const r = stage.getBoundingClientRect()
       return { x: r.left + r.width * 0.5 + 90, y: r.top + r.height * 0.22 }
     }
-
     const goIdle = () => {
       const p = cakePoint()
       target.current = { x: p.x, y: p.y, chasing: false }
     }
-
     const chase = (x: number, y: number, holdMs: number) => {
       target.current = { x, y, chasing: true }
       window.clearTimeout(idleTimer)
@@ -207,18 +201,14 @@ export default function BeeCompanion() {
       const t = e.touches[0] ?? e.changedTouches[0]
       if (t) chase(t.clientX, t.clientY, 2600)
     }
-
-    // The bee (and its bubble) belong to the hero and below — not the intro.
-    // Fade the whole overlay in once the hero stage reaches the viewport.
+    // The bee belongs to the hero and below — never over the intro.
     const onScroll = () => {
       if (!target.current.chasing) goIdle()
       const holder = holderRef.current
       const stage = document.querySelector('[data-bee-anchor]') as HTMLElement | null
       if (holder && stage) {
-        const top = stage.getBoundingClientRect().top
-        const visible = top < window.innerHeight * 0.65
+        const visible = stage.getBoundingClientRect().top < window.innerHeight * 0.65
         holder.style.opacity = visible ? '1' : '0'
-        holder.style.pointerEvents = 'none' // canvas layer never eats clicks
         if (bubbleRef.current) bubbleRef.current.style.opacity = visible ? '1' : '0'
       }
     }
@@ -252,13 +242,13 @@ export default function BeeCompanion() {
           gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
           style={{ background: 'transparent' }}
         >
-          <ambientLight intensity={1.2} />
-          <directionalLight position={[3, 5, 6]} intensity={1.3} />
-          <BeeModel target={target} bubbleRef={bubbleRef} />
+          <ambientLight intensity={1.25} />
+          <directionalLight position={[3, 5, 6]} intensity={1.25} />
+          <Suspense fallback={null}>
+            <BeeModel target={target} bubbleRef={bubbleRef} />
+          </Suspense>
         </Canvas>
       </div>
-      {/* "Ask me" — a speech bubble pinned to the bee's mouth. The only
-          clickable part of the overlay; it opens the site's chat. */}
       <div
         ref={bubbleRef}
         className="fixed left-0 top-0 transition-opacity duration-500"
@@ -267,7 +257,7 @@ export default function BeeCompanion() {
         <button
           type="button"
           onClick={openChat}
-          className="pointer-events-auto relative -translate-y-full translate-x-3 rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2 text-sm font-bold text-foreground shadow-soft transition-transform hover:scale-105"
+          className="pointer-events-auto relative -translate-y-full translate-x-4 rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2 text-sm font-bold text-foreground shadow-soft transition-transform hover:scale-105"
           aria-label="Ask the CakeUWish assistant a question"
         >
           Ask me! 🍰
