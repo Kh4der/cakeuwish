@@ -28,6 +28,8 @@ function Bee({ target }: { target: React.MutableRefObject<Target> }) {
   const group = useRef<THREE.Group>(null)
   const leftWing = useRef<THREE.Mesh>(null)
   const rightWing = useRef<THREE.Mesh>(null)
+  const legs = useRef<(THREE.Mesh | null)[]>([])
+  const antennae = useRef<(THREE.Group | null)[]>([])
   const { viewport } = useThree()
 
   // Velocity is integrated, not set, so the bee overshoots and settles like a
@@ -90,67 +92,101 @@ function Bee({ target }: { target: React.MutableRefObject<Target> }) {
     const flap = Math.sin(t * 42) * 0.7
     if (leftWing.current) leftWing.current.rotation.x = -0.35 + flap
     if (rightWing.current) rightWing.current.rotation.x = -0.35 - flap
+
+    // Legs dangle and paddle softly in flight — alternating phases so the six
+    // never move in lockstep. They swing wider the faster the bee flies.
+    const legSwing = 0.14 + Math.min(0.2, speed * 0.05)
+    legs.current.forEach((m, i) => {
+      if (m) m.rotation.x = 0.65 + Math.sin(t * 9 + i * 1.9) * legSwing
+    })
+    // Antennae sweep slowly, out of phase, like they're tasting the air.
+    antennae.current.forEach((a, i) => {
+      if (a) {
+        a.rotation.x = 0.7 + Math.sin(t * 2.6 + i * 2.1) * 0.14
+        a.rotation.z = (i === 0 ? 0.4 : -0.4) + Math.cos(t * 1.9 + i) * 0.08
+      }
+    })
   })
 
   return (
     // Small — a bee on screen should read as an insect, not a mascot.
     <group ref={group} position={[0, 0, 0]} scale={0.17}>
-      {/* abdomen — long, tapering to a point at the back */}
-      <mesh position={[0, 0, 0.46]} scale={[0.82, 0.78, 1.35]}>
-        <sphereGeometry args={[0.4, 20, 16]} />
-        <meshStandardMaterial color={YELLOW} roughness={0.6} />
-      </mesh>
-      {/* four narrow bands, thinning toward the tip */}
-      {[0.18, 0.42, 0.66, 0.86].map((z, i) => (
-        <mesh key={i} position={[0, 0, z]} scale={[0.83 - i * 0.06, 0.79 - i * 0.06, 0.075]}>
-          <sphereGeometry args={[0.405, 18, 12]} />
-          <meshStandardMaterial color={DARK} roughness={0.75} />
+      {/* The model is built nose-at--z; the camera looks down -z, which showed
+          the viewer its tail. This inner group turns it to a 3/4 view — face
+          and eyes toward the viewer, slight top-down tilt, like it's aware of
+          you while it flies. */}
+      <group rotation={[0.14, Math.PI - 0.6, 0]}>
+        {/* abdomen — long, tapering to a point at the back */}
+        <mesh position={[0, 0, 0.46]} scale={[0.82, 0.78, 1.35]}>
+          <sphereGeometry args={[0.4, 20, 16]} />
+          <meshStandardMaterial color={YELLOW} roughness={0.6} />
         </mesh>
-      ))}
-      {/* thorax — compact and fuzzy */}
-      <mesh position={[0, 0.01, -0.12]} scale={[0.92, 0.88, 0.85]}>
-        <sphereGeometry args={[0.33, 18, 14]} />
-        <meshStandardMaterial color="#C8901F" roughness={0.95} />
-      </mesh>
-      {/* head — small */}
-      <mesh position={[0, 0, -0.42]} scale={[0.9, 0.85, 0.8]}>
-        <sphereGeometry args={[0.22, 16, 12]} />
-        <meshStandardMaterial color={DARK} roughness={0.65} />
-      </mesh>
-      {/* compound eyes, wrapping the sides of the head */}
-      {[-0.14, 0.14].map((x) => (
-        <mesh key={x} position={[x, 0.02, -0.47]} scale={[0.55, 1, 0.8]}>
-          <sphereGeometry args={[0.09, 10, 8]} />
-          <meshStandardMaterial color="#15100C" roughness={0.2} />
-        </mesh>
-      ))}
-      {/* antennae — elbowed, angled forward */}
-      {[-0.08, 0.08].map((x) => (
-        <mesh key={x} position={[x, 0.14, -0.52]} rotation={[0.7, 0, x > 0 ? -0.4 : 0.4]}>
-          <cylinderGeometry args={[0.009, 0.009, 0.26, 5]} />
-          <meshStandardMaterial color={DARK} />
-        </mesh>
-      ))}
-      {/* six legs, tucked up in flight */}
-      {[-1, 1].map((side) =>
-        [-0.18, 0.0, 0.18].map((z, i) => (
-          <mesh
-            key={`${side}-${i}`}
-            position={[side * 0.2, -0.2, z]}
-            rotation={[0.6, 0, side * 0.9]}
-          >
-            <cylinderGeometry args={[0.014, 0.008, 0.24, 5]} />
-            <meshStandardMaterial color={DARK} roughness={0.8} />
+        {/* four narrow bands, thinning toward the tip */}
+        {[0.18, 0.42, 0.66, 0.86].map((z, i) => (
+          <mesh key={i} position={[0, 0, z]} scale={[0.83 - i * 0.06, 0.79 - i * 0.06, 0.075]}>
+            <sphereGeometry args={[0.405, 18, 12]} />
+            <meshStandardMaterial color={DARK} roughness={0.75} />
           </mesh>
-        )),
-      )}
-      {/* wings — long, held high and swept back */}
-      <mesh ref={leftWing} geometry={wingGeo} position={[-0.42, 0.2, -0.02]} rotation={[-0.3, 0.42, 0.16]}>
-        <meshStandardMaterial color={WING} transparent opacity={0.3} roughness={0.05} side={THREE.DoubleSide} />
-      </mesh>
-      <mesh ref={rightWing} geometry={wingGeo} position={[0.42, 0.2, -0.02]} rotation={[-0.3, -0.42, -0.16]}>
-        <meshStandardMaterial color={WING} transparent opacity={0.3} roughness={0.05} side={THREE.DoubleSide} />
-      </mesh>
+        ))}
+        {/* thorax — compact and fuzzy */}
+        <mesh position={[0, 0.01, -0.12]} scale={[0.92, 0.88, 0.85]}>
+          <sphereGeometry args={[0.33, 18, 14]} />
+          <meshStandardMaterial color="#C8901F" roughness={0.95} />
+        </mesh>
+        {/* head — a warm brown (not near-black) so the dark eyes read against it */}
+        <mesh position={[0, 0, -0.42]} scale={[0.9, 0.85, 0.8]}>
+          <sphereGeometry args={[0.22, 16, 12]} />
+          <meshStandardMaterial color="#5A3A20" roughness={0.7} />
+        </mesh>
+        {/* big glossy compound eyes on the front of the face */}
+        {[-0.12, 0.12].map((x) => (
+          <mesh key={x} position={[x, 0.03, -0.52]} scale={[0.7, 1.15, 0.75]}>
+            <sphereGeometry args={[0.11, 14, 12]} />
+            <meshStandardMaterial color="#120B07" roughness={0.08} metalness={0.1} />
+          </mesh>
+        ))}
+        {/* catchlights — the tiny white glints that make eyes look alive */}
+        {[-0.14, 0.1].map((x) => (
+          <mesh key={x} position={[x, 0.09, -0.6]}>
+            <sphereGeometry args={[0.022, 8, 6]} />
+            <meshBasicMaterial color="#FFFFFF" />
+          </mesh>
+        ))}
+        {/* antennae — elbowed, sweeping (animated in useFrame via the group refs) */}
+        {[-0.08, 0.08].map((x, i) => (
+          <group key={x} ref={(el) => { antennae.current[i] = el }} position={[x, 0.16, -0.5]}>
+            <mesh position={[0, 0.1, 0]} rotation={[0.25, 0, 0]}>
+              <cylinderGeometry args={[0.009, 0.009, 0.2, 5]} />
+              <meshStandardMaterial color={DARK} />
+            </mesh>
+            <mesh position={[0, 0.2, -0.05]} rotation={[0.9, 0, 0]}>
+              <cylinderGeometry args={[0.008, 0.006, 0.16, 5]} />
+              <meshStandardMaterial color={DARK} />
+            </mesh>
+          </group>
+        ))}
+        {/* six legs — dangling, animated in useFrame */}
+        {[-1, 1].map((side) =>
+          [-0.18, 0.0, 0.18].map((z, i) => (
+            <mesh
+              key={`${side}-${i}`}
+              ref={(el) => { legs.current[(side < 0 ? 0 : 3) + i] = el }}
+              position={[side * 0.2, -0.2, z]}
+              rotation={[0.65, 0, side * 0.9]}
+            >
+              <cylinderGeometry args={[0.014, 0.008, 0.26, 5]} />
+              <meshStandardMaterial color={DARK} roughness={0.8} />
+            </mesh>
+          )),
+        )}
+        {/* wings — long, held high and swept back */}
+        <mesh ref={leftWing} geometry={wingGeo} position={[-0.42, 0.2, -0.02]} rotation={[-0.3, 0.42, 0.16]}>
+          <meshStandardMaterial color={WING} transparent opacity={0.3} roughness={0.05} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh ref={rightWing} geometry={wingGeo} position={[0.42, 0.2, -0.02]} rotation={[-0.3, -0.42, -0.16]}>
+          <meshStandardMaterial color={WING} transparent opacity={0.3} roughness={0.05} side={THREE.DoubleSide} />
+        </mesh>
+      </group>
     </group>
   )
 }

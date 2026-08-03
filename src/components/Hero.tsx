@@ -162,6 +162,81 @@ export default function Hero() {
     }
   }, [reduced])
 
+  // Drag-to-slide: the carousel is driven by scroll position, so a horizontal
+  // drag simply scrubs that same scroll — one cake per ~55% of the viewport
+  // width — and on release snaps to the nearest cake. Vertical swipes are left
+  // to native scrolling (touch-action: pan-y), and drags that start on the CTA
+  // or title links are ignored so they stay clickable.
+  useEffect(() => {
+    if (reduced) return
+    const pin = pinRef.current
+    const stage = stageRef.current
+    if (!pin || !stage) return
+    type LenisLike = { scrollTo: (y: number, o?: { immediate?: boolean }) => void }
+    const lenis = () => (window as unknown as { __lenis?: LenisLike }).__lenis
+    const stepPx = () => STEP * window.innerHeight
+    const stageTop = () => stage.getBoundingClientRect().top + window.scrollY
+    const setScroll = (y: number, immediate: boolean) => {
+      const l = lenis()
+      if (l) l.scrollTo(y, { immediate })
+      else window.scrollTo({ top: y, behavior: immediate ? 'auto' : 'smooth' })
+    }
+
+    let dragging = false
+    let moved = false
+    let startX = 0
+    let startY = 0
+    let startScroll = 0
+
+    const down = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      if ((e.target as HTMLElement).closest('a,button')) return
+      dragging = true
+      moved = false
+      startX = e.clientX
+      startY = e.clientY
+      startScroll = window.scrollY
+    }
+    const move = (e: PointerEvent) => {
+      if (!dragging) return
+      const dx = e.clientX - startX
+      const dy = e.clientY - startY
+      if (!moved) {
+        // A mostly-vertical gesture is a scroll, not a drag — let it through.
+        if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return
+        moved = true
+        pin.style.cursor = 'grabbing'
+      }
+      e.preventDefault()
+      const total = (order.length - 1) * stepPx()
+      const raw = startScroll - (dx * stepPx()) / (window.innerWidth * 0.55)
+      setScroll(Math.max(stageTop(), Math.min(stageTop() + total, raw)), true)
+    }
+    const up = () => {
+      if (!dragging) return
+      dragging = false
+      pin.style.cursor = 'grab'
+      if (!moved) return
+      const idx = Math.max(0, Math.min(order.length - 1, Math.round((window.scrollY - stageTop()) / stepPx())))
+      setScroll(stageTop() + idx * stepPx(), false)
+    }
+
+    pin.style.cursor = 'grab'
+    pin.style.touchAction = 'pan-y'
+    pin.addEventListener('pointerdown', down)
+    window.addEventListener('pointermove', move, { passive: false })
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+    return () => {
+      pin.style.cursor = ''
+      pin.style.touchAction = ''
+      pin.removeEventListener('pointerdown', down)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+    }
+  }, [reduced, order.length])
+
   const heightVh = Math.round((1 + (order.length - 1) * STEP) * 100)
 
   // Bee: everywhere except reduced-motion. On phones it follows your finger,
