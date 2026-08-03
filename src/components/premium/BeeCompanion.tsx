@@ -40,68 +40,51 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
   const vel = useRef(new THREE.Vector3())
   const bank = useRef(0)
 
-  // One-time surgery on the loaded scene: normalise scale/orientation, re-pivot
-  // the wings, and collect the animatable parts.
+  // One-time surgery on the loaded scene. MEASURED FACTS about this model:
+  // it is built LYING ON ITS BACK — body along z (head +z, feet -z), face
+  // (eyes/mouth/cheeks all at +y) pointing at the sky. Rendered as-is it reads
+  // as a sleeping bee. Standing it "normal, facing us" = rotate -90° about X
+  // (head up, feet down), then 180° about Y (face was left pointing away).
   const rig = useMemo(() => {
     const root = scene
-    const bbox = new THREE.Box3().setFromObject(root)
-    const size = bbox.getSize(new THREE.Vector3())
-    const centre = bbox.getCenter(new THREE.Vector3())
-    const maxDim = Math.max(size.x, size.y, size.z) || 1
 
     // GLTFLoader sanitises node names: spaces become underscores (verified by
     // loading this exact file) — so "Eye white -1" arrives as "Eye_white_-1".
     const byName = (n: string) => root.getObjectByName(n.replace(/ /g, '_')) as THREE.Mesh | null
 
-    // Which way does the face point? The eyes sit forward of the body centre;
-    // the sign of that offset on z tells us the facing direction.
-    const eyeWhites = [byName('Eye white -1'), byName('Eye white 1')].filter(Boolean) as THREE.Mesh[]
-    let faceSign = 1
-    if (eyeWhites.length) {
-      const eb = new THREE.Box3()
-      eyeWhites.forEach((m) => eb.expandByObject(m))
-      faceSign = eb.getCenter(new THREE.Vector3()).z >= centre.z ? 1 : -1
-    }
+    const rawBox = new THREE.Box3().setFromObject(root)
+    const rawCentre = rawBox.getCenter(new THREE.Vector3())
 
     // Wings: pivot each at its inner edge (the side nearest the body's x=0).
-    const wings = (
-      [
-        ['Wing left upper', 1],
-        ['Wing right upper', -1],
-        ['Wing left lower', 1],
-        ['Wing right lower', -1],
-      ] as const
-    )
-      .map(([name, sign]) => {
+    const wings = (['Wing left upper', 'Wing right upper', 'Wing left lower', 'Wing right lower'] as const)
+      .map((name) => {
         const mesh = byName(name)
         if (!mesh) return null
         const wb = new THREE.Box3().setFromObject(mesh)
         const wc = wb.getCenter(new THREE.Vector3())
-        const inner = wc.x >= centre.x ? wb.min.x : wb.max.x
+        const inner = wc.x >= rawCentre.x ? wb.min.x : wb.max.x
         repivot(mesh, new THREE.Vector3(inner, wc.y, wc.z))
-        return { mesh, sign: wc.x >= centre.x ? -1 : 1, lower: name.includes('lower'), fallbackSign: sign }
+        return { mesh, sign: wc.x >= rawCentre.x ? -1 : 1, lower: name.includes('lower') }
       })
       .filter(Boolean) as { mesh: THREE.Mesh; sign: number; lower: boolean }[]
 
-    // Eyes: the iris/pupil/sparkle trios slide inside the whites to form gaze.
+    // Eyes: iris/pupil/sparkle slide inside the whites to form the gaze. In
+    // MODEL space the eye plane is x (width) by z (height-once-standing); the
+    // whites measure ≈0.68 × 0.86, so travel is generous both ways.
     const gaze = (['-1', '1'] as const).map((side) => {
       const white = byName(`Eye white ${side}`)
       const parts = [byName(`Iris ${side}`), byName(`Pupil ${side}`), byName(`Eye sparkle ${side}`)].filter(
         Boolean,
       ) as THREE.Mesh[]
-      // The whites are wide ovals (≈0.68 × 0.26 in this model), so the gaze
-      // travels further sideways than up-down — like real cartoon eyes.
-      let rx = 0.05
-      let ry = 0.03
+      let rx = 0.1
+      let rz = 0.1
       if (white) {
         const wb = new THREE.Box3().setFromObject(white)
         const ws = wb.getSize(new THREE.Vector3())
-        // Generous travel — face-on, the gaze IS the interaction, so it should
-        // be unmistakable that the eyes are following the pointer.
-        rx = ws.x * 0.24
-        ry = ws.y * 0.22
+        rx = ws.x * 0.22
+        rz = ws.z * 0.18
       }
-      return { parts, rx, ry }
+      return { parts, rx, rz }
     })
 
     // Limbs bob gently by translation (origin pivots make rotation unusable).
@@ -109,11 +92,23 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
       .map((n) => byName(n))
       .filter(Boolean) as THREE.Mesh[]
 
-    // Size by HEIGHT, not the longest axis: the longest axis is the body's
-    // front-to-back depth, which points at the camera now that the bee faces
-    // us — normalising on it made the visible bee tiny.
-    void maxDim
-    return { root, scale: 0.8 / (size.y || 1), centre, faceSign, wings, gaze, limbs }
+    // Stand the model up: inner group lifts the head from +z to +y; outer turns
+    // the face (which lands on -z) around to the camera. Nested groups keep the
+    // rotation order unambiguous.
+    const stand = new THREE.Group()
+    stand.rotation.x = -Math.PI / 2
+    stand.add(root)
+    const holder = new THREE.Group()
+    holder.rotation.y = Math.PI
+    holder.add(stand)
+
+    // Normalise on the STANDING height and centre the whole character.
+    const box = new THREE.Box3().setFromObject(holder)
+    const size = box.getSize(new THREE.Vector3())
+    const centre = box.getCenter(new THREE.Vector3())
+    const scale = 0.85 / (size.y || 1)
+
+    return { holder, scale, centre, wings, gaze, limbs }
   }, [scene])
 
   useFrame(({ clock }, delta) => {
@@ -138,9 +133,8 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
     // Face the viewer straight on — the eyes are the whole show. Only a whisper
     // of lean into the direction of travel so flight still reads as alive.
     const speed = vel.current.length()
-    const baseYaw = rig.faceSign > 0 ? 0 : Math.PI
     const lean = THREE.MathUtils.clamp(vel.current.x * 0.09, -0.22, 0.22)
-    g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, baseYaw + lean * rig.faceSign, 1 - Math.pow(0.001, dt))
+    g.rotation.y = THREE.MathUtils.lerp(g.rotation.y, lean, 1 - Math.pow(0.001, dt))
     const targetBank = THREE.MathUtils.clamp(-vel.current.x * 0.14, -0.45, 0.45)
     bank.current = THREE.MathUtils.lerp(bank.current, targetBank, 1 - Math.pow(0.002, dt))
     g.rotation.z = bank.current
@@ -150,34 +144,37 @@ function BeeModel({ target }: { target: React.MutableRefObject<Target> }) {
     g.position.z = Math.sin(t * 6) * 0.05
 
     // Wings flap from their roots — uppers lead, lowers trail a beat behind,
-    // beating a touch faster when the bee hurries.
+    // beating faster when the bee hurries. With the character standing, model-y
+    // is the screen normal, so rotating about local y sweeps the wing tips
+    // up-and-down in the screen plane where the flutter is actually visible.
     const beat = 34 + Math.min(14, speed * 4)
     for (const w of rig.wings) {
       const phase = w.lower ? -0.6 : 0
-      w.mesh.rotation.z = w.sign * Math.sin(t * beat + phase) * (w.lower ? 0.5 : 0.72)
+      w.mesh.rotation.y = w.sign * Math.sin(t * beat + phase) * (w.lower ? 0.5 : 0.72)
     }
 
     // Eyes look where the pointer is: slide iris/pupil/sparkle within the white.
-    // pointer is already in NDC (-1..1); invert x when the model faces -z.
-    const gx = THREE.MathUtils.clamp(pointer.x, -1, 1) * rig.faceSign
+    // Axis map after standing the model up (Y-turn then X-stand): screen-right
+    // is model -x, screen-up is model +z.
+    const gx = THREE.MathUtils.clamp(pointer.x, -1, 1)
     const gy = THREE.MathUtils.clamp(pointer.y, -1, 1)
     for (const eye of rig.gaze) {
       for (const p of eye.parts) {
-        p.position.x = THREE.MathUtils.lerp(p.position.x, gx * eye.rx, 1 - Math.pow(0.0005, dt))
-        p.position.y = THREE.MathUtils.lerp(p.position.y, gy * eye.ry, 1 - Math.pow(0.0005, dt))
+        p.position.x = THREE.MathUtils.lerp(p.position.x, -gx * eye.rx, 1 - Math.pow(0.0005, dt))
+        p.position.z = THREE.MathUtils.lerp(p.position.z, gy * eye.rz, 1 - Math.pow(0.0005, dt))
       }
     }
 
-    // limbs sway softly, out of phase
+    // limbs sway softly, out of phase (model z = screen vertical once standing)
     rig.limbs.forEach((m, i) => {
-      m.position.y = Math.sin(t * 5 + i * 1.3) * 0.012
+      m.position.z = Math.sin(t * 5 + i * 1.3) * 0.012
     })
   })
 
   return (
     <group ref={group}>
       <group scale={rig.scale} position={rig.centre.clone().multiplyScalar(-rig.scale).toArray()}>
-        <primitive object={rig.root} />
+        <primitive object={rig.holder} />
       </group>
     </group>
   )
