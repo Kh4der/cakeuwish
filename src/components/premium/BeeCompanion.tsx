@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
@@ -22,10 +22,11 @@ interface Target {
 
 function BeeModel({
   target,
-  bubbleRef,
+  hitRef,
 }: {
   target: React.MutableRefObject<Target>
-  bubbleRef: React.RefObject<HTMLDivElement | null>
+  /** DOM hit-area + speech cloud, moved to the bee's screen position each frame */
+  hitRef: React.RefObject<HTMLDivElement | null>
 }) {
   const group = useRef<THREE.Group>(null)
   const { viewport, pointer, camera, size } = useThree()
@@ -40,7 +41,7 @@ function BeeModel({
   const waveUntil = useRef(-1)
   const prevVelX = useRef(0)
   const accelSm = useRef(0)
-  const mouthWorld = useRef(new THREE.Vector3())
+  const worldPos = useRef(new THREE.Vector3())
 
   const rig = useMemo<BeeRig & { scale: number }>(() => {
     const r = autoRig(scene)
@@ -81,14 +82,13 @@ function BeeModel({
     accelSm.current = THREE.MathUtils.lerp(accelSm.current, ax, 1 - Math.pow(0.001, dt))
 
     // ── wings flap from their roots ─────────────────────────────────────────
-    // Amplitude stays modest on purpose: past ~0.3 the wings tuck behind the
-    // body and vanish from a front-on view (verified in the snapshot rig).
-    const beat = 26 + Math.min(14, speed * 4)
-    const flap = Math.sin(t * beat)
-    b.wingL.rotation.z = flap * 0.28
-    b.wingR.rotation.z = -flap * 0.28
-    b.wingL.rotation.x = flap * 0.12
-    b.wingR.rotation.x = flap * 0.12
+    // Wings sweep between level and RAISED, never below — verified in the
+    // snapshot rig that a downstroke folds them behind the belly and they
+    // disappear head-on. Sign matters: negative lifts the left wing.
+    const beat = 24 + Math.min(12, speed * 4)
+    const up = Math.sin(t * beat) * 0.5 + 0.5 // 0 = level, 1 = fully raised
+    b.wingL.rotation.z = -up * 0.42
+    b.wingR.rotation.z = up * 0.42
 
     // ── eyes follow the pointer (bones offset from their rest positions) ────
     const gx = THREE.MathUtils.clamp(pointer.x, -1, 1)
@@ -134,17 +134,18 @@ function BeeModel({
       b.head.rotation.z = THREE.MathUtils.lerp(b.head.rotation.z, 0, 1 - Math.pow(0.002, dt))
     }
 
-    // ── antennae spring against acceleration ────────────────────────────────
-    const wobble = THREE.MathUtils.clamp(accelSm.current * 0.02, -0.3, 0.3)
-    b.antL.rotation.z = Math.sin(t * 3.1) * 0.08 - wobble
-    b.antR.rotation.z = Math.sin(t * 3.1 + 1.4) * 0.08 - wobble
+    // Antennae and hat are deliberately NOT separately boned — they ride the
+    // head rigidly. Giving them their own bones tore 1,445 hat vertices apart.
+    // The head's own tilt already gives them a lively sway.
+    const wobble = THREE.MathUtils.clamp(accelSm.current * 0.006, -0.09, 0.09)
+    b.head.rotation.z -= wobble
 
-    // ── pin the "Ask me" bubble to the mouth ────────────────────────────────
-    const bubble = bubbleRef.current
-    if (bubble) {
-      b.mouth.getWorldPosition(mouthWorld.current)
-      const p = mouthWorld.current.project(camera)
-      bubble.style.transform = `translate(${Math.round((p.x * 0.5 + 0.5) * size.width)}px, ${Math.round(
+    // ── keep the hover target sitting exactly on the bee ────────────────────
+    const hit = hitRef.current
+    if (hit) {
+      g.getWorldPosition(worldPos.current)
+      const p = worldPos.current.project(camera)
+      hit.style.transform = `translate(${Math.round((p.x * 0.5 + 0.5) * size.width)}px, ${Math.round(
         (-p.y * 0.5 + 0.5) * size.height,
       )}px)`
     }
@@ -175,8 +176,9 @@ export default function BeeCompanion() {
     y: typeof window === 'undefined' ? 0 : window.innerHeight * 0.42,
     chasing: false,
   })
-  const bubbleRef = useRef<HTMLDivElement | null>(null)
+  const hitRef = useRef<HTMLDivElement | null>(null)
   const holderRef = useRef<HTMLDivElement | null>(null)
+  const [hovered, setHovered] = useState(false)
 
   useEffect(() => {
     let idleTimer = 0
@@ -209,7 +211,10 @@ export default function BeeCompanion() {
       if (holder && stage) {
         const visible = stage.getBoundingClientRect().top < window.innerHeight * 0.65
         holder.style.opacity = visible ? '1' : '0'
-        if (bubbleRef.current) bubbleRef.current.style.opacity = visible ? '1' : '0'
+        if (hitRef.current) {
+          hitRef.current.style.opacity = visible ? '1' : '0'
+          hitRef.current.style.pointerEvents = visible ? 'auto' : 'none'
+        }
       }
     }
 
@@ -245,27 +250,53 @@ export default function BeeCompanion() {
           <ambientLight intensity={1.25} />
           <directionalLight position={[3, 5, 6]} intensity={1.25} />
           <Suspense fallback={null}>
-            <BeeModel target={target} bubbleRef={bubbleRef} />
+            <BeeModel target={target} hitRef={hitRef} />
           </Suspense>
         </Canvas>
       </div>
+
+      {/* Hover target that rides along with the bee. The canvas itself never
+          takes clicks; this small circle does. Hovering it puffs out the
+          speech cloud, clicking opens the chat. */}
       <div
-        ref={bubbleRef}
+        ref={hitRef}
         className="fixed left-0 top-0 transition-opacity duration-500"
         style={{ zIndex: 46, willChange: 'transform' }}
       >
         <button
           type="button"
           onClick={openChat}
-          className="pointer-events-auto relative -translate-y-full translate-x-4 rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2 text-sm font-bold text-foreground shadow-soft transition-transform hover:scale-105"
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={() => setHovered(true)}
+          onBlur={() => setHovered(false)}
           aria-label="Ask the CakeUWish assistant a question"
+          className="absolute h-24 w-24 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full"
         >
-          Ask me! 🍰
-          <span
-            aria-hidden="true"
-            className="absolute -bottom-1.5 left-2 h-3 w-3 rotate-45 border-b border-r border-border bg-card"
-          />
+          <span className="sr-only">Ask me a question</span>
         </button>
+
+        {/* the cloud — only while hovering */}
+        <div
+          aria-hidden={!hovered}
+          className={`pointer-events-none absolute -translate-x-1/2 whitespace-nowrap transition-all duration-200 ${
+            hovered ? 'opacity-100' : 'translate-y-1 opacity-0'
+          }`}
+          style={{ bottom: 'calc(50% + 46px)' }}
+        >
+          <span className="relative inline-block rounded-full border border-border bg-card px-4 py-2 text-sm font-bold text-foreground shadow-soft">
+            Ask me! 🍰
+            {/* two little puffs make the tag read as a speech cloud */}
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-1.5 left-1/2 h-2.5 w-2.5 -translate-x-4 rounded-full border border-border bg-card"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-3.5 left-1/2 h-1.5 w-1.5 -translate-x-1 rounded-full border border-border bg-card"
+            />
+          </span>
+        </div>
       </div>
     </>
   )
