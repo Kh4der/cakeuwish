@@ -1,14 +1,9 @@
-import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MessageCircle } from 'lucide-react'
 import { WHATSAPP_ENABLED, WHATSAPP_URL, START_ID } from '../data/cakes'
 import { useContent } from '../content/ContentProvider'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
-
-// The bee is three.js — lazy so it never touches the entry chunk, and only on
-// wide, motion-friendly screens where a flying companion is a delight rather
-// than a battery tax.
-const BeeCompanion = lazy(() => import('./premium/BeeCompanion'))
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t))
 // Viewport fraction of scroll spent gliding from one cake to the next.
@@ -239,16 +234,6 @@ export default function Hero() {
 
   const heightVh = Math.round((1 + (order.length - 1) * STEP) * 100)
 
-  // Bee: everywhere except reduced-motion. On phones it follows your finger,
-  // so it earns its keep there too — it just waits for first paint so it never
-  // competes with the hero images for bandwidth.
-  const [bee, setBee] = useState(false)
-  useEffect(() => {
-    if (reduced) return
-    const t = window.setTimeout(() => setBee(true), 900)
-    return () => window.clearTimeout(t)
-  }, [reduced])
-
   return (
     <section
       ref={stageRef}
@@ -354,12 +339,6 @@ export default function Hero() {
             )
           })}
         </div>
-
-        {bee && (
-          <Suspense fallback={null}>
-            <BeeCompanion />
-          </Suspense>
-        )}
 
         {/* scroll hint (desktop only — mobile bottom row holds title + CTA) */}
         {!reduced && !isMobile && (

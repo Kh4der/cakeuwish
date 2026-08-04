@@ -42,11 +42,43 @@ function BeeModel({
   const prevVelX = useRef(0)
   const accelSm = useRef(0)
   const worldPos = useRef(new THREE.Vector3())
+  const reseed = useRef(false)
 
   const rig = useMemo<BeeRig & { scale: number }>(() => {
     const r = autoRig(scene)
     return { ...r, scale: 0.9 / (r.height || 1) }
   }, [scene])
+
+  // Scrolling back up to the intro puts the bee back to a clean slate: no
+  // leftover momentum, and its chew/wave schedules start over so you don't
+  // arrive mid-munch.
+  useEffect(() => {
+    const reset = () => {
+      vel.current.set(0, 0, 0)
+      bank.current = 0
+      accelSm.current = 0
+      prevVelX.current = 0
+      chewAmp.current = 0
+      chewUntil.current = -1
+      waveUntil.current = -1
+      // The chew/wave schedules live on the render clock, not wall time, so the
+      // frame loop re-seeds them — seeding here would use the wrong time base.
+      reseed.current = true
+      const g = group.current
+      if (g) {
+        g.rotation.set(0, 0, 0)
+        g.scale.setScalar(rig.scale)
+      }
+      const b = rig.bones
+      b.head.rotation.set(0, 0, 0)
+      b.eyeL.position.copy(rig.rest.eyeL)
+      b.eyeR.position.copy(rig.rest.eyeR)
+      b.mouth.position.copy(rig.rest.mouth)
+      b.mouth.scale.set(1, 1, 1)
+    }
+    window.addEventListener('cuw:intro-reset', reset)
+    return () => window.removeEventListener('cuw:intro-reset', reset)
+  }, [rig])
 
   useFrame(({ clock }, delta) => {
     const g = group.current
@@ -54,6 +86,14 @@ function BeeModel({
     const dt = Math.min(delta, 0.05)
     const t = clock.elapsedTime
     const b = rig.bones
+
+    // a reset happened (scrolled back to the intro) — restart the schedules
+    // against the render clock so the bee doesn't arrive mid-munch
+    if (reseed.current) {
+      reseed.current = false
+      nextChew.current = t + 3
+      nextWave.current = t + 6
+    }
 
     // ── flight ──────────────────────────────────────────────────────────────
     const tx = (target.current.x / window.innerWidth - 0.5) * viewport.width
@@ -195,14 +235,18 @@ export default function BeeCompanion() {
   useEffect(() => {
     let idleTimer = 0
 
-    const cakePoint = () => {
+    // Where the bee loiters when you leave it alone. On the home hero that's
+    // beside whichever cake is on stage; anywhere else (intro, subpages) it
+    // just hovers in a pleasant upper-right spot out of the reading column.
+    const restPoint = () => {
       const stage = document.querySelector('[data-bee-anchor]') as HTMLElement | null
-      if (!stage) return { x: window.innerWidth * 0.5, y: window.innerHeight * 0.42 }
-      const r = stage.getBoundingClientRect()
-      return { x: r.left + r.width * 0.5 + 90, y: r.top + r.height * 0.22 }
+      const r = stage?.getBoundingClientRect()
+      const onStage = r && r.top < window.innerHeight * 0.8 && r.bottom > window.innerHeight * 0.2
+      if (onStage) return { x: r.left + r.width * 0.5 + 90, y: r.top + r.height * 0.22 }
+      return { x: window.innerWidth * 0.82, y: window.innerHeight * 0.3 }
     }
     const goIdle = () => {
-      const p = cakePoint()
+      const p = restPoint()
       target.current = { x: p.x, y: p.y, chasing: false }
     }
     const chase = (x: number, y: number, holdMs: number) => {
@@ -215,19 +259,17 @@ export default function BeeCompanion() {
       const t = e.touches[0] ?? e.changedTouches[0]
       if (t) chase(t.clientX, t.clientY, 2600)
     }
-    // The bee belongs to the hero and below — never over the intro.
+    // The bee is always present now — intro, hero and every subpage. Scrolling
+    // back up to the intro fires a reset so the start screen feels untouched
+    // (see the 'cuw:intro-reset' listener below).
+    let wasPastIntro = window.scrollY > window.innerHeight * 0.5
     const onScroll = () => {
       if (!target.current.chasing) goIdle()
-      const holder = holderRef.current
-      const stage = document.querySelector('[data-bee-anchor]') as HTMLElement | null
-      if (holder && stage) {
-        const visible = stage.getBoundingClientRect().top < window.innerHeight * 0.65
-        holder.style.opacity = visible ? '1' : '0'
-        if (hitRef.current) {
-          hitRef.current.style.opacity = visible ? '1' : '0'
-          hitRef.current.style.pointerEvents = visible ? 'auto' : 'none'
-        }
+      const pastIntro = window.scrollY > window.innerHeight * 0.5
+      if (wasPastIntro && !pastIntro) {
+        window.dispatchEvent(new CustomEvent('cuw:intro-reset'))
       }
+      wasPastIntro = pastIntro
     }
 
     goIdle()

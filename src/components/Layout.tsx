@@ -6,6 +6,11 @@ import WhatsAppFab from './WhatsAppFab'
 
 // The AI chat widget stays out of the entry chunk and mounts after first paint.
 const ChatWidget = lazy(() => import('./ChatWidget'))
+// The bee lives in the shared chrome, so it follows you across every page
+// (including the intro) instead of belonging to the home hero. three.js stays
+// lazy; it mounts a beat after first paint so it never competes with the hero
+// images for bandwidth.
+const BeeCompanion = lazy(() => import('./premium/BeeCompanion'))
 import { useSmoothScroll } from '../lib/smoothScroll'
 import { scrollToId, scrollToTop } from '../lib/smoothScroll'
 import { useScrollReveal } from '../lib/useScrollReveal'
@@ -25,6 +30,13 @@ export default function Layout() {
   useScrollReveal(pathname)
   const [chatReady, setChatReady] = useState(false)
   useEffect(() => setChatReady(true), [])
+
+  const [beeReady, setBeeReady] = useState(false)
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const t = window.setTimeout(() => setBeeReady(true), 900)
+    return () => window.clearTimeout(t)
+  }, [])
 
   // Route change → jump to top (or honor a #hash once content paints). Lazy
   // route chunks mount a beat after navigation, so poll briefly for the target.
@@ -76,6 +88,11 @@ export default function Layout() {
       {chatReady && (
         <Suspense fallback={null}>
           <ChatWidget />
+        </Suspense>
+      )}
+      {beeReady && (
+        <Suspense fallback={null}>
+          <BeeCompanion />
         </Suspense>
       )}
     </>

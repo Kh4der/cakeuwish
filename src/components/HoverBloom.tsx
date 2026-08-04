@@ -164,6 +164,18 @@ export default function HoverBloom() {
       scrollFade = Math.max(0, Math.min(1, 1 - window.scrollY / (window.innerHeight * 0.85)))
       canvas.style.opacity = String(0.62 * scrollFade)
     }
+    // Scrolling back up to the intro wipes the flower bed, so the start screen
+    // is as clean as it was on arrival rather than showing an old session's
+    // garden. Fired by the scroll watcher in BeeCompanion.
+    const onReset = () => {
+      gctx.setTransform(1, 0, 0, 1, 0, 0)
+      gctx.clearRect(0, 0, garden.width, garden.height)
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      active.length = 0
+      needsRedraw = true
+    }
+    window.addEventListener('cuw:intro-reset', onReset)
     onScroll()
     window.addEventListener('mousedown', onMouseDown, { passive: true })
     window.addEventListener('touchstart', onTouchStart, { passive: true })
@@ -233,6 +245,7 @@ export default function HoverBloom() {
 
     return () => {
       cancelAnimationFrame(raf)
+      window.removeEventListener('cuw:intro-reset', onReset)
       window.removeEventListener('mousedown', onMouseDown)
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('resize', resize)
