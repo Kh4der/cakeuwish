@@ -28,15 +28,25 @@ export default function Lightbox({
   )
   const next = useCallback(() => onIndex((index + 1) % photos.length), [index, photos.length, onIndex])
 
-  // Mount-only: freeze Lenis behind the dialog (site convention, matching
-  // ScatterGallery) and hand focus back to the opener on close.
+  // Mount-only: freeze the page behind the dialog (site convention, matching
+  // ScatterGallery) and hand focus back to the opener on close. Lenis is absent
+  // on touchscreens and under reduced motion, so lock the body directly too —
+  // otherwise the gallery scrolls away underneath the open lightbox on a phone.
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null
     const lenis = (window as Window & { __lenis?: { stop?: () => void; start?: () => void } }).__lenis
     lenis?.stop?.()
+    const body = document.body
+    const prevOverflow = body.style.overflow
+    const prevPadding = body.style.paddingRight
+    const gap = window.innerWidth - document.documentElement.clientWidth
+    body.style.overflow = 'hidden'
+    if (gap > 0) body.style.paddingRight = `${gap}px` // no layout jump on desktop
     closeRef.current?.focus()
     return () => {
       lenis?.start?.()
+      body.style.overflow = prevOverflow
+      body.style.paddingRight = prevPadding
       opener?.focus?.()
     }
   }, [])

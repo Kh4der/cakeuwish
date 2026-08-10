@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { Menu, X, MessageCircle } from 'lucide-react'
 import { WHATSAPP_ENABLED, WHATSAPP_URL } from '../data/cakes'
+import { useHeroPassed } from '../lib/useHeroPassed'
 
 const LINKS = [
   { to: '/gallery', label: 'Gallery' },
@@ -15,24 +16,11 @@ const LINKS = [
 export default function Header() {
   const { pathname } = useLocation()
   const isHome = pathname === '/'
-  const [show, setShow] = useState(!isHome)
   const [open, setOpen] = useState(false)
 
   // On the home page the header stays hidden until the hero has scrolled by;
   // on every other page it is always visible.
-  useEffect(() => {
-    if (!isHome) {
-      setShow(true)
-      return
-    }
-    const onScroll = () => {
-      const hero = document.getElementById('top')
-      setShow(hero ? hero.getBoundingClientRect().bottom < window.innerHeight * 0.6 : window.scrollY > window.innerHeight * 1.9)
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [isHome])
+  const show = useHeroPassed(isHome)
 
   // Close the mobile menu on navigation.
   useEffect(() => setOpen(false), [pathname])

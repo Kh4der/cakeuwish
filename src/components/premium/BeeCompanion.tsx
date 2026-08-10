@@ -14,6 +14,13 @@ import { autoRig, type BeeRig } from './beeRig'
 
 const MODEL = '/models/bee.glb'
 
+// Decided once, at module load. This drives everything that has to differ on a
+// phone: the render budget, the size of the tap target, whether the speech
+// cloud is always visible, and — most importantly — whether the bee chases a
+// finger at all. On a touchscreen a scroll IS a stream of move events, so a
+// pointer-chasing character would spend the whole gesture glued to your thumb.
+const COARSE = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+
 interface Target {
   x: number
   y: number
@@ -23,13 +30,16 @@ interface Target {
 function BeeModel({
   target,
   hitRef,
+  probeRef,
 }: {
   target: React.MutableRefObject<Target>
   /** DOM hit-area + speech cloud, moved to the bee's screen position each frame */
   hitRef: React.RefObject<HTMLDivElement | null>
+  /** the bee's only DOM reads, called a few times a second from inside the loop */
+  probeRef: React.MutableRefObject<() => void>
 }) {
   const group = useRef<THREE.Group>(null)
-  const { viewport, pointer, camera, size } = useThree()
+  const { viewport, pointer, camera, size, invalidate } = useThree()
   const { scene } = useGLTF(MODEL)
 
   const vel = useRef(new THREE.Vector3())
@@ -42,12 +52,34 @@ function BeeModel({
   const prevVelX = useRef(0)
   const accelSm = useRef(0)
   const worldPos = useRef(new THREE.Vector3())
+  const desired = useRef(new THREE.Vector3())
   const reseed = useRef(false)
+  const nextProbe = useRef(0)
+  const armed = useRef(false)
 
   const rig = useMemo<BeeRig & { scale: number }>(() => {
     const r = autoRig(scene)
     return { ...r, scale: 0.9 / (r.height || 1) }
   }, [scene])
+
+  // On a phone the canvas runs on demand at ~30fps instead of R3F's default
+  // uncapped rAF. Halving the draws (on top of dpr 1 and no MSAA) is what keeps
+  // a full-screen transparent WebGL layer from stealing the scroll's frame
+  // budget and heating the device into thermal throttling. Every behaviour
+  // still plays: dt is clamped and all the easings are framerate-independent.
+  useEffect(() => {
+    if (!COARSE) return
+    let raf = 0
+    let last = 0
+    const pump = (now: number) => {
+      raf = requestAnimationFrame(pump)
+      if (now - last < 33) return
+      last = now
+      invalidate()
+    }
+    raf = requestAnimationFrame(pump)
+    return () => cancelAnimationFrame(raf)
+  }, [invalidate])
 
   // Scrolling back up to the intro puts the bee back to a clean slate: no
   // leftover momentum, and its chew/wave schedules start over so you don't
@@ -75,10 +107,11 @@ function BeeModel({
       b.eyeR.position.copy(rig.rest.eyeR)
       b.mouth.position.copy(rig.rest.mouth)
       b.mouth.scale.set(1, 1, 1)
+      invalidate()
     }
     window.addEventListener('cuw:intro-reset', reset)
     return () => window.removeEventListener('cuw:intro-reset', reset)
-  }, [rig])
+  }, [rig, invalidate])
 
   useFrame(({ clock }, delta) => {
     const g = group.current
@@ -93,19 +126,40 @@ function BeeModel({
       reseed.current = false
       nextChew.current = t + 3
       nextWave.current = t + 6
+      nextProbe.current = 0
+    }
+
+    // ── the bee's ONLY DOM reads, and they are throttled ────────────────────
+    // These used to run inside a scroll listener, on every scroll event, on
+    // every page: a document-wide querySelector plus getBoundingClientRect
+    // plus innerWidth/innerHeight, landing right after the hero had dirtied
+    // the layout — one forced synchronous reflow per scroll event. Here they
+    // run ~7 times a second from inside the render loop instead.
+    if (t > nextProbe.current) {
+      nextProbe.current = t + 0.15
+      probeRef.current()
     }
 
     // ── flight ──────────────────────────────────────────────────────────────
-    const tx = (target.current.x / window.innerWidth - 0.5) * viewport.width
-    const ty = -(target.current.y / window.innerHeight - 0.5) * viewport.height
-    const wanderX = Math.sin(t * 0.9) * 0.42 + Math.sin(t * 2.3) * 0.12
-    const wanderY = Math.cos(t * 1.3) * 0.3 + Math.cos(t * 3.1) * 0.08
-    const desired = new THREE.Vector3(tx + wanderX, ty + wanderY, 0)
-    const toTarget = desired.clone().sub(g.position)
+    const tx = (target.current.x / size.width - 0.5) * viewport.width
+    const ty = -(target.current.y / size.height - 0.5) * viewport.height
+    // Wander is in world units, so on a narrow screen (a small viewport.width)
+    // an unscaled amplitude is a far bigger fraction of the screen — it read as
+    // 17% of the width on a phone against 6% on desktop, which is what pushed
+    // the bee off the edge. Scale it to the viewport.
+    const roam = Math.min(1, viewport.width / 8)
+    const wanderX = (Math.sin(t * 0.9) * 0.42 + Math.sin(t * 2.3) * 0.12) * roam
+    const wanderY = (Math.cos(t * 1.3) * 0.3 + Math.cos(t * 3.1) * 0.08) * roam
+    desired.current.set(tx + wanderX, ty + wanderY, 0).sub(g.position)
     const chasing = target.current.chasing
-    vel.current.addScaledVector(toTarget, (chasing ? 9 : 3.4) * dt)
+    vel.current.addScaledVector(desired.current, (chasing ? 9 : 3.4) * dt)
     vel.current.multiplyScalar(1 - Math.min(1, (chasing ? 3.4 : 2.6) * dt))
     g.position.addScaledVector(vel.current, dt)
+    // never let it wander off-canvas
+    const limX = viewport.width * 0.5 - 0.6
+    const limY = viewport.height * 0.5 - 0.6
+    g.position.x = THREE.MathUtils.clamp(g.position.x, -limX, limX)
+    g.position.y = THREE.MathUtils.clamp(g.position.y, -limY, limY)
 
     const speed = vel.current.length()
     const lean = THREE.MathUtils.clamp(vel.current.x * 0.09, -0.22, 0.22)
@@ -200,6 +254,15 @@ function BeeModel({
       hit.style.transform = `translate(${Math.round((p.x * 0.5 + 0.5) * size.width)}px, ${Math.round(
         (-p.y * 0.5 + 0.5) * size.height,
       )}px)`
+      // The tap target is LIVE ONLY WHEN THE BEE HAS SETTLED. In flight it is
+      // an invisible 44px circle sweeping across the page, and on a phone it
+      // used to be steered onto the exact spot your finger just left — so the
+      // next tap opened the chat instead of hitting the link underneath.
+      const settle = !chasing && vel.current.lengthSq() < 0.02
+      if (settle !== armed.current) {
+        armed.current = settle
+        hit.style.pointerEvents = settle ? 'auto' : 'none'
+      }
     }
   })
 
@@ -229,93 +292,161 @@ export default function BeeCompanion() {
     chasing: false,
   })
   const hitRef = useRef<HTMLDivElement | null>(null)
-  const holderRef = useRef<HTMLDivElement | null>(null)
+  const probeRef = useRef<() => void>(() => {})
   const [hovered, setHovered] = useState(false)
 
   useEffect(() => {
     let idleTimer = 0
+    // Cached so the render loop never reads layout for them. innerWidth /
+    // innerHeight are layout reads, and on Chrome Android they change every
+    // time the URL bar slides.
+    let vw = window.innerWidth
+    let vh = window.innerHeight
+    let anchor: HTMLElement | null = null
+    let wasPastIntro = window.scrollY > vh * 0.5
 
     // Where the bee loiters when you leave it alone. On the home hero that's
     // beside whichever cake is on stage; anywhere else (intro, subpages) it
     // just hovers in a pleasant upper-right spot out of the reading column.
     const restPoint = () => {
-      const stage = document.querySelector('[data-bee-anchor]') as HTMLElement | null
-      const r = stage?.getBoundingClientRect()
-      const onStage = r && r.top < window.innerHeight * 0.8 && r.bottom > window.innerHeight * 0.2
-      if (onStage) return { x: r.left + r.width * 0.5 + 90, y: r.top + r.height * 0.22 }
-      return { x: window.innerWidth * 0.82, y: window.innerHeight * 0.3 }
+      if (!anchor || !anchor.isConnected) {
+        anchor = document.querySelector('[data-bee-anchor]')
+      }
+      const r = anchor?.getBoundingClientRect()
+      const onStage = r && r.top < vh * 0.8 && r.bottom > vh * 0.2
+      // A phone has no room for the desktop's +90px shoulder beside the cake,
+      // and the upper-right corner is where the ghost wordmark lives — so the
+      // bee tucks in closer and lower.
+      const narrow = vw < 640
+      if (onStage) {
+        return {
+          x: r.left + r.width * (narrow ? 0.76 : 0.5) + (narrow ? 0 : 90),
+          y: r.top + r.height * (narrow ? 0.34 : 0.22),
+        }
+      }
+      return { x: vw * (narrow ? 0.84 : 0.82), y: vh * (narrow ? 0.24 : 0.3) }
     }
-    const goIdle = () => {
-      const p = restPoint()
-      target.current = { x: p.x, y: p.y, chasing: false }
-    }
-    const chase = (x: number, y: number, holdMs: number) => {
-      target.current = { x, y, chasing: true }
-      window.clearTimeout(idleTimer)
-      idleTimer = window.setTimeout(goIdle, holdMs)
-    }
-    const onMove = (e: PointerEvent) => chase(e.clientX, e.clientY, 1600)
-    const onTouch = (e: TouchEvent) => {
-      const t = e.touches[0] ?? e.changedTouches[0]
-      if (t) chase(t.clientX, t.clientY, 2600)
-    }
-    // The bee is always present now — intro, hero and every subpage. Scrolling
-    // back up to the intro fires a reset so the start screen feels untouched
-    // (see the 'cuw:intro-reset' listener below).
-    let wasPastIntro = window.scrollY > window.innerHeight * 0.5
-    const onScroll = () => {
-      if (!target.current.chasing) goIdle()
-      const pastIntro = window.scrollY > window.innerHeight * 0.5
+
+    // Called from inside the render loop, throttled — see BeeModel. Re-homes
+    // the idle bee (so it follows the cake on stage as you scroll) and watches
+    // for the upward crossing back into the intro.
+    probeRef.current = () => {
+      if (!target.current.chasing) {
+        const p = restPoint()
+        target.current.x = p.x
+        target.current.y = p.y
+      }
+      const pastIntro = window.scrollY > vh * 0.5
       if (wasPastIntro && !pastIntro) {
         window.dispatchEvent(new CustomEvent('cuw:intro-reset'))
       }
       wasPastIntro = pastIntro
     }
 
-    goIdle()
-    onScroll()
+    // Releasing just clears the chase flag; the probe re-homes the bee on its
+    // next tick. Nothing here reads layout.
+    const release = () => {
+      target.current.chasing = false
+    }
+    const chase = (x: number, y: number, holdMs: number) => {
+      target.current = { x, y, chasing: true }
+      window.clearTimeout(idleTimer)
+      idleTimer = window.setTimeout(release, holdMs)
+    }
+
+    // On a touchscreen, pointermove fires for the finger too — and a scroll is
+    // one long stream of them. Mouse only.
+    const onMove = (e: PointerEvent) => {
+      if (COARSE && e.pointerType !== 'mouse') return
+      chase(e.clientX, e.clientY, 1600)
+    }
+
+    // Touch: a deliberate TAP calls the bee over, a swipe does not. The old
+    // code chased every touchmove, so the bee spent every scroll pinned under
+    // the thumb. The bee is aimed above the tap so it never lands on the thing
+    // you were reaching for.
+    let sx = 0
+    let sy = 0
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0]
+      if (t) {
+        sx = t.clientX
+        sy = t.clientY
+      }
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      const t = e.changedTouches[0]
+      if (!t) return
+      if (Math.hypot(t.clientX - sx, t.clientY - sy) > 10) return // that was a scroll
+      chase(t.clientX, Math.max(vh * 0.12, t.clientY - 120), 1800)
+    }
+
+    const onResize = () => {
+      vw = window.innerWidth
+      vh = window.innerHeight
+    }
+
+    probeRef.current()
     window.addEventListener('pointermove', onMove, { passive: true })
-    window.addEventListener('touchstart', onTouch, { passive: true })
-    window.addEventListener('touchmove', onTouch, { passive: true })
-    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('pointercancel', release, { passive: true })
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchend', onTouchEnd, { passive: true })
+    window.addEventListener('resize', onResize, { passive: true })
+    window.addEventListener('orientationchange', onResize, { passive: true })
     return () => {
       window.clearTimeout(idleTimer)
       window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('touchstart', onTouch)
-      window.removeEventListener('touchmove', onTouch)
-      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('pointercancel', release)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
     }
   }, [])
 
   return (
     <>
       <div
-        ref={holderRef}
-        className="pointer-events-none fixed inset-0 transition-opacity duration-500"
+        className="pointer-events-none fixed inset-0"
         aria-hidden="true"
         style={{ zIndex: 45 }}
       >
         <Canvas
-          dpr={[1, 1.25]}
+          frameloop={COARSE ? 'demand' : 'always'}
+          dpr={COARSE ? 1 : [1, 1.25]}
           camera={{ position: [0, 0, 6], fov: 50 }}
-          gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
-          style={{ background: 'transparent' }}
+          // MSAA buys nothing on a bee this small and costs a full-screen
+          // resolve every frame; the debounce stops Chrome Android from
+          // reallocating the drawing buffer while the URL bar slides.
+          gl={{ antialias: !COARSE, alpha: true, powerPreference: 'low-power', stencil: false }}
+          resize={{ scroll: false, debounce: { scroll: 200, resize: 200 } }}
+          // pointerEvents MUST be set here, not just on the holder: R3F puts
+          // `pointer-events: auto` on its own container div, which overrides the
+          // holder's `none` — so this full-screen canvas was quietly eating
+          // every click on the page underneath it.
+          style={{ background: 'transparent', pointerEvents: 'none' }}
         >
           <ambientLight intensity={1.25} />
           <directionalLight position={[3, 5, 6]} intensity={1.25} />
           <Suspense fallback={null}>
-            <BeeModel target={target} hitRef={hitRef} />
+            <BeeModel target={target} hitRef={hitRef} probeRef={probeRef} />
           </Suspense>
         </Canvas>
       </div>
 
       {/* Hover target that rides along with the bee. The canvas itself never
           takes clicks; this small circle does. Hovering it puffs out the
-          speech cloud, clicking opens the chat. */}
+          speech cloud, clicking opens the chat. It starts parked off-screen
+          and inert — the render loop arms it once the bee settles. */}
       <div
         ref={hitRef}
-        className="fixed left-0 top-0 transition-opacity duration-500"
-        style={{ zIndex: 46, willChange: 'transform' }}
+        className="fixed left-0 top-0"
+        style={{
+          zIndex: 46,
+          willChange: 'transform',
+          pointerEvents: 'none',
+          transform: 'translate(-300px, -300px)',
+        }}
       >
         <button
           type="button"
@@ -325,16 +456,18 @@ export default function BeeCompanion() {
           onFocus={() => setHovered(true)}
           onBlur={() => setHovered(false)}
           aria-label="Ask the CakeUWish assistant a question"
-          className="absolute h-24 w-24 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full"
+          className="absolute h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full sm:h-24 sm:w-24"
         >
           <span className="sr-only">Ask me a question</span>
         </button>
 
-        {/* the cloud — only while hovering */}
+        {/* The cloud. On a phone there is no hover to reveal it, so it stays
+            up permanently — otherwise the bee carries an invisible tap target
+            and no way to know it is tappable. */}
         <div
-          aria-hidden={!hovered}
+          aria-hidden={!hovered && !COARSE}
           className={`pointer-events-none absolute -translate-x-1/2 whitespace-nowrap transition-all duration-200 ${
-            hovered ? 'opacity-100' : 'translate-y-1 opacity-0'
+            hovered || COARSE ? 'opacity-100' : 'translate-y-1 opacity-0'
           }`}
           style={{ bottom: 'calc(50% + 46px)' }}
         >

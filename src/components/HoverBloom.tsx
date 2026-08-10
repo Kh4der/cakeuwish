@@ -110,22 +110,50 @@ export default function HoverBloom() {
     // persistent "garden" buffer — grown flowers are stamped here and never cleared
     const garden = document.createElement('canvas')
     const gctx = garden.getContext('2d')!
+    // Tracked here rather than read back off the canvas: `garden` is a fresh
+    // element per effect run, so comparing against canvas.width would skip
+    // sizing the garden whenever the visible canvas already happened to be the
+    // right size (StrictMode's double-mount does exactly that) and every
+    // stamped flower would land in an unsized 300x150 buffer.
+    let lastW = -1
+    let lastH = -1
     const resize = () => {
       const r = canvas.getBoundingClientRect()
       w = r.width || window.innerWidth
       h = r.height || window.innerHeight
       dpr = Math.min(window.devicePixelRatio || 1, w < 768 ? 1 : 1.5)
-      canvas.width = Math.round(w * dpr)
-      canvas.height = Math.round(h * dpr)
-      garden.width = canvas.width
-      garden.height = canvas.height // (resizing clears the garden)
+      const cw = Math.round(w * dpr)
+      const ch = Math.round(h * dpr)
+      // Bail BEFORE touching the bitmaps: assigning canvas.width clears it even
+      // when the value is unchanged. On a phone every URL-bar slide fires
+      // `resize`, so without this the garden was wiped constantly and the
+      // flowers you had just grown vanished mid-scroll.
+      if (cw === lastW && ch === lastH) return
+      lastW = cw
+      lastH = ch
+      canvas.width = cw
+      canvas.height = ch
+      garden.width = cw
+      garden.height = ch // (a real resize clears the garden)
     }
     resize()
 
-    // A reusable pool covering all three flower types, so a moving pointer
-    // scatters a mixed bed rather than one repeated shape.
+    // A reusable pool covering all three flower types, so repeated taps scatter
+    // a mixed bed rather than one repeated shape. Building all 15 up front was
+    // ~140 gradient-filled paths in one synchronous task at mount — on a phone
+    // that landed in the same frame as the intro's particle build. Seed two,
+    // then grow the pool one sprite per idle callback.
     const KINDS: Kind[] = ['daisy', 'daisy', 'rose', 'blossom', 'blossom']
-    const POOL = Array.from({ length: 15 }, (_, i) => makeFlowerSprite(300, KINDS[i % KINDS.length]))
+    const SPRITE = w < 768 ? 200 : 300
+    const POOL: HTMLCanvasElement[] = [makeFlowerSprite(SPRITE, 'daisy'), makeFlowerSprite(SPRITE, 'blossom')]
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback
+      ?? ((cb: () => void) => window.setTimeout(cb, 120))
+    const grow = () => {
+      if (POOL.length >= 15) return
+      POOL.push(makeFlowerSprite(SPRITE, KINDS[POOL.length % KINDS.length]))
+      idle(grow)
+    }
+    idle(grow)
     const active: Bloom[] = []   // blooms still growing; once grown they're stamped into the garden
     let needsRedraw = false      // when false + no active blooms, the canvas is static → skip the per-frame redraw
     let scrollFade = 1 // 1 on the start screen, fades to 0 as you scroll down to the hero

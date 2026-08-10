@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Loader2, MessageCircle, MessageSquare, Phone, Send, Sparkles, X } from 'lucide-react'
 import { PHONE_TEL, WHATSAPP_DISPLAY, WHATSAPP_ENABLED, WHATSAPP_URL } from '../data/cakes'
 import { track } from '../lib/analytics'
+import { useHeroPassed } from '../lib/useHeroPassed'
 
 const BACKEND = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY)
 
@@ -178,7 +179,9 @@ function CallbackForm({ onDone, onCancel }: { onDone: (confirmation: string) => 
 export default function ChatWidget() {
   const { pathname } = useLocation()
   const isHome = pathname === '/'
-  const [show, setShow] = useState(!isHome)
+  // `forced` is the bee's override: its "Ask me!" bubble can open the widget
+  // from anywhere, including over the hero where it is normally still hidden.
+  const [forced, setForced] = useState(false)
   const [open, setOpen] = useState(false)
   // Omnichannel: when Chatwoot is configured in Admin → Setup, its bubble
   // replaces this widget entirely (one inbox for web/FB/IG/WhatsApp).
@@ -201,7 +204,7 @@ export default function ChatWidget() {
   // (When Chatwoot is active the bubble talks to $chatwoot directly instead.)
   useEffect(() => {
     const openFromBee = () => {
-      setShow(true)
+      setForced(true)
       setOpen(true)
     }
     window.addEventListener('cuw:open-chat', openFromBee)
@@ -222,19 +225,7 @@ export default function ChatWidget() {
   const listRef = useRef<HTMLDivElement>(null)
 
   // Same reveal timing as the WhatsApp FAB: on home, wait until the hero passes.
-  useEffect(() => {
-    if (!isHome) {
-      setShow(true)
-      return
-    }
-    const onScroll = () => {
-      const hero = document.getElementById('top')
-      setShow(hero ? hero.getBoundingClientRect().bottom < window.innerHeight * 0.6 : window.scrollY > window.innerHeight * 1.95)
-    }
-    onScroll()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [isHome])
+  const show = useHeroPassed(isHome) || forced
 
   useEffect(() => {
     try {

@@ -31,11 +31,32 @@ export default function Layout() {
   const [chatReady, setChatReady] = useState(false)
   useEffect(() => setChatReady(true), [])
 
+  // The bee drags in the whole three.js payload plus a ~1 MB model. A bare
+  // 900 ms timer landed that squarely inside the user's first scroll on a
+  // phone. Wait for an idle moment instead, and never start the fetch while a
+  // scroll is actually in progress.
   const [beeReady, setBeeReady] = useState(false)
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const t = window.setTimeout(() => setBeeReady(true), 900)
-    return () => window.clearTimeout(t)
+    let lastScroll = 0
+    const onScroll = () => { lastScroll = performance.now() }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    const idle = (window as Window & {
+      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number
+    }).requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1200))
+    let timer = 0
+    const attempt = () => {
+      if (performance.now() - lastScroll < 500) {
+        timer = window.setTimeout(() => idle(attempt, { timeout: 5000 }), 400)
+        return
+      }
+      setBeeReady(true)
+    }
+    idle(attempt, { timeout: 5000 })
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('scroll', onScroll)
+    }
   }, [])
 
   // Route change → jump to top (or honor a #hash once content paints). Lazy
@@ -58,6 +79,12 @@ export default function Layout() {
     raf = requestAnimationFrame(attempt)
     return () => cancelAnimationFrame(raf)
   }, [pathname, hash])
+
+  // Lets CSS target the home route — the only page that pins a critical button
+  // into the bottom-right corner where the Chatwoot launcher floats.
+  useEffect(() => {
+    document.documentElement.dataset.route = pathname === '/' ? 'home' : 'page'
+  }, [pathname])
 
   // PostHog counts the initial load by itself; count SPA navigations manually.
   const firstRender = useRef(true)

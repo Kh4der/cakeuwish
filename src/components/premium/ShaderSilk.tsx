@@ -108,16 +108,22 @@ export default function ShaderSilk({ className = '' }: { className?: string }) {
       }
     }
 
+    resize()
+
     let visible = true
     const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting }, { threshold: 0 })
     io.observe(canvas)
+    // resize() reads clientWidth/clientHeight — a layout read. Calling it from
+    // frame() did that 60 times a second, on most subpages, forever. A
+    // ResizeObserver reports the same thing only when it actually changes.
+    const ro = new ResizeObserver(resize)
+    ro.observe(canvas)
 
     let raf = 0
     const t0 = performance.now()
     const frame = (now: number) => {
       raf = requestAnimationFrame(frame)
       if (!visible) return
-      resize()
       gl.uniform2f(uRes, canvas.width, canvas.height)
       gl.uniform1f(uT, (now - t0) / 1000)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
@@ -127,6 +133,7 @@ export default function ShaderSilk({ className = '' }: { className?: string }) {
     return () => {
       cancelAnimationFrame(raf)
       io.disconnect()
+      ro.disconnect()
       gl.getExtension('WEBGL_lose_context')?.loseContext()
     }
   }, [])

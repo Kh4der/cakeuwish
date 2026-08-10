@@ -228,3 +228,19 @@ html.lenis body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Chatwoot's launcher is fixed bottom-right at z-index 2147483000, which on a
+   phone lands squarely on top of the hero's "Order Now" pill — measured, it
+   covered 47% of the button, and elementFromPoint at the pill's centre returned
+   the launcher rather than the link. Lift it clear on narrow screens.
+   Scoped to the home route on purpose: a floating launcher always occludes
+   something, and lifting it everywhere just moved the collision onto the
+   gallery's filter chips. Only the home hero pins a critical button into that
+   corner. Desktop keeps Chatwoot exactly where it puts itself. */
+@media (max-width: 639px) {
+  :root[data-route='home'] .woot-widget-bubble,
+  :root[data-route='home'] .woot--bubble-holder,
+  :root[data-route='home'] .woot-widget-holder {
+    bottom: calc(1.25rem + 3.75rem + env(safe-area-inset-bottom)) !important;
+  }
+}

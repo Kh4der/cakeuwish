@@ -54,6 +54,13 @@ export default function Hero() {
   const activeRef = useRef(0)
   const isMobileRef = useRef(isMobile)
   const renderRef = useRef<() => void>(() => {})
+  // The scrollable travel of the stage, measured ONCE per layout change rather
+  // than derived from window.innerHeight on every scroll event. On a phone
+  // innerHeight changes as the URL bar slides, so deriving it live made the
+  // cakes drift sideways with no scroll at all, and left the drag's snap points
+  // sitting between cakes. See `measure`.
+  const totalRef = useRef(0)
+  const vwRef = useRef(typeof window === 'undefined' ? 0 : window.innerWidth)
 
   const textMain = cake.dark ? '#FDF8F2' : '#3A2A1E'
   const textSub = cake.dark ? 'rgba(253,248,242,0.82)' : 'rgba(58,42,30,0.72)'
@@ -76,11 +83,22 @@ export default function Hero() {
   // at `pos` is centred (sharp, full size) and its neighbours slide to the sides
   // (smaller, blurred, fading). Styles are set imperatively so React re-renders
   // (bg / title swaps) never clobber the transforms mid-scroll.
+  // Stage travel = how far the sticky pin can slide inside the tall section.
+  // Both are read from the elements themselves, so they share one unit basis
+  // (100svh) instead of mixing CSS `vh` with a live `window.innerHeight`.
+  const measure = useCallback(() => {
+    const s = stageRef.current
+    const p = pinRef.current
+    if (!s || !p) return
+    totalRef.current = Math.max(1, s.offsetHeight - p.offsetHeight)
+    vwRef.current = window.innerWidth
+  }, [])
+
   const render = useCallback(() => {
     const n = order.length
     const pos = clamp01(progressRef.current) * (n - 1) // 0 → first centred … n-1 → last centred
     const m = isMobileRef.current
-    const vw = window.innerWidth || 1
+    const vw = vwRef.current || window.innerWidth || 1
     const spacing = vw * (m ? 0.82 : 0.5) // how far each cake slides per step
     const cards = cardsRef.current
     for (let slot = 0; slot < cards.length; slot++) {
@@ -100,7 +118,9 @@ export default function Hero() {
       el.style.zIndex = String(100 - Math.round(a * 10))
       el.style.visibility = opacity <= 0.001 ? 'hidden' : 'visible'
     }
-    if (ghostRef.current) ghostRef.current.style.transform = `translateX(${-pos * vw * 0.02}px)` // gentle parallax, scaled to viewport so it stays readable on phones
+    // Gentle parallax, scaled to the viewport. On a phone the wordmark already
+    // fills the width, so 2% of it would drag the word off the screen edge.
+    if (ghostRef.current) ghostRef.current.style.transform = `translateX(${-pos * vw * (m ? 0.004 : 0.02)}px)`
     if (hintRef.current) hintRef.current.style.opacity = String(clamp01(1 - clamp01(progressRef.current) * 12))
 
     const act = Math.max(0, Math.min(n - 1, Math.round(pos)))
@@ -109,20 +129,31 @@ export default function Hero() {
 
   useEffect(() => { renderRef.current = render }, [render])
   // Paint the correct layout BEFORE first paint (no all-cakes-stacked flash).
-  useLayoutEffect(() => { render() }, [render])
+  useLayoutEffect(() => { measure(); render() }, [measure, render])
 
-  // Track viewport size (lazy-safe) and re-place cakes.
+  // Track viewport size (lazy-safe) and re-place cakes. Gated on the WIDTH
+  // actually changing: on Chrome Android every URL-bar slide fires `resize`,
+  // and re-placing seven cakes plus a setState mid-scroll is exactly the stutter
+  // you feel. Height changes can't affect the layout any more — the stage is
+  // measured in svh, which the URL bar doesn't move.
   useEffect(() => {
     const onResize = () => {
+      if (window.innerWidth === vwRef.current) return
       const m = window.innerWidth < 640
       isMobileRef.current = m
       setIsMobile(m)
+      measure()
       renderRef.current()
     }
+    vwRef.current = -1 // force the first pass through
     onResize()
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+    window.addEventListener('orientationchange', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+    }
+  }, [measure])
 
   // Scroll-driven slide via NATIVE CSS sticky (no GSAP pin — its JS pinning
   // jitters during momentum scroll on phones; sticky stays buttery). Progress is
@@ -131,15 +162,25 @@ export default function Hero() {
   useEffect(() => {
     if (reduced) return
     let visible = true
-    const onScroll = () => {
-      if (!visible) return // skip re-placing the 7 cakes while the hero is off-screen
+    // Placing the cakes is deferred to one rAF per frame instead of running
+    // inside the scroll dispatch. Scroll events fire before rAF in the same
+    // frame so nothing is delayed, but the other scroll readers on this page
+    // (the chat widget, the header, the bee) no longer measure against a tree
+    // this handler just dirtied — which was a forced reflow each, every event.
+    let queued = 0
+    const place = () => {
+      queued = 0
       const s = stageRef.current
       if (!s) return
-      const total = s.offsetHeight - window.innerHeight
+      const total = totalRef.current
       progressRef.current = total > 0 ? clamp01(-s.getBoundingClientRect().top / total) : 0
       renderRef.current()
     }
-    onScroll()
+    const onScroll = () => {
+      if (!visible) return // skip re-placing the 7 cakes while the hero is off-screen
+      if (!queued) queued = requestAnimationFrame(place)
+    }
+    place()
     window.addEventListener('scroll', onScroll, { passive: true })
     type LenisLike = { on: (e: string, cb: () => void) => void; off: (e: string, cb: () => void) => void }
     let lenis: LenisLike | undefined
@@ -151,6 +192,7 @@ export default function Hero() {
     if (stageRef.current) io.observe(stageRef.current)
     return () => {
       window.clearTimeout(id)
+      if (queued) cancelAnimationFrame(queued)
       window.removeEventListener('scroll', onScroll)
       lenis?.off('scroll', onScroll)
       io.disconnect()
@@ -169,66 +211,114 @@ export default function Hero() {
     if (!pin || !stage) return
     type LenisLike = { scrollTo: (y: number, o?: { immediate?: boolean }) => void }
     const lenis = () => (window as unknown as { __lenis?: LenisLike }).__lenis
-    const stepPx = () => STEP * window.innerHeight
-    const stageTop = () => stage.getBoundingClientRect().top + window.scrollY
+    // One step is exactly one seventh of the measured travel, so a snap always
+    // lands a cake dead centre. Deriving it from window.innerHeight put the
+    // snap points off by the height of the URL bar.
+    const stepPx = () => totalRef.current / Math.max(1, order.length - 1)
     const setScroll = (y: number, immediate: boolean) => {
       const l = lenis()
       if (l) l.scrollTo(y, { immediate })
       else window.scrollTo({ top: y, behavior: immediate ? 'auto' : 'smooth' })
     }
 
-    let dragging = false
-    let moved = false
+    // 'none' = still deciding, 'x' = ours (scrub the carousel), 'y' = the
+    // browser's (a page scroll; we never touch it again for this gesture).
+    let axis: 'none' | 'x' | 'y' = 'none'
+    let pid = -1
     let startX = 0
     let startY = 0
     let startScroll = 0
+    let stageTopPx = 0
+    let pendingDx = 0
+    let raf = 0
+
+    // Scrubbing is applied once per frame. lenis.scrollTo(immediate) emits its
+    // scroll event synchronously, so calling it straight from pointermove ran
+    // the whole carousel re-place inside the input handler.
+    const applyDrag = () => {
+      raf = 0
+      const total = (order.length - 1) * stepPx()
+      const raw = startScroll - (pendingDx * stepPx()) / (vwRef.current * 0.55)
+      setScroll(Math.max(stageTopPx, Math.min(stageTopPx + total, raw)), true)
+    }
 
     const down = (e: PointerEvent) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return
+      if (!e.isPrimary || pid !== -1) return
       if ((e.target as HTMLElement).closest('a,button')) return
-      dragging = true
-      moved = false
+      pid = e.pointerId
+      axis = 'none'
       startX = e.clientX
       startY = e.clientY
       startScroll = window.scrollY
+      // Read the stage offset ONCE per gesture instead of twice per move.
+      stageTopPx = stage.getBoundingClientRect().top + window.scrollY
+      pin.setPointerCapture(e.pointerId)
     }
     const move = (e: PointerEvent) => {
-      if (!dragging) return
+      if (e.pointerId !== pid || axis === 'y') return
       const dx = e.clientX - startX
       const dy = e.clientY - startY
-      if (!moved) {
-        // A mostly-vertical gesture is a scroll, not a drag — let it through.
-        if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return
-        moved = true
-        pin.style.cursor = 'grabbing'
+      if (axis === 'none') {
+        // Deciding who owns the gesture. The old test latched at 8px on a bare
+        // dx > dy — inside the browser's own touch slop — so a thumb arc that
+        // was fractionally more horizontal at the start got claimed by the
+        // carousel, and because touch-action is pan-y the page then refused to
+        // scroll at all. Horizontal now needs real intent, and vertical can
+        // win and hand the gesture back for good.
+        const ax = Math.abs(dx)
+        const ay = Math.abs(dy)
+        if (ax >= 14 && ax >= ay * 1.5) {
+          axis = 'x'
+          pin.style.cursor = 'grabbing'
+          pin.style.userSelect = 'none'
+        } else if (ay >= 10) {
+          axis = 'y'
+          pid = -1
+          return
+        } else {
+          return
+        }
       }
-      e.preventDefault()
-      const total = (order.length - 1) * stepPx()
-      const raw = startScroll - (dx * stepPx()) / (window.innerWidth * 0.55)
-      setScroll(Math.max(stageTop(), Math.min(stageTop() + total, raw)), true)
+      // Inert for touch (touch-action governs that) but still what stops a
+      // mouse drag from selecting the title text underneath.
+      if (e.pointerType === 'mouse') e.preventDefault()
+      pendingDx = dx
+      if (!raf) raf = requestAnimationFrame(applyDrag)
     }
-    const up = () => {
-      if (!dragging) return
-      dragging = false
+    const finish = (snap: boolean) => {
+      if (raf) { cancelAnimationFrame(raf); raf = 0 }
       pin.style.cursor = 'grab'
-      if (!moved) return
-      const idx = Math.max(0, Math.min(order.length - 1, Math.round((window.scrollY - stageTop()) / stepPx())))
-      setScroll(stageTop() + idx * stepPx(), false)
+      pin.style.userSelect = ''
+      const wasDrag = axis === 'x'
+      axis = 'none'
+      pid = -1
+      if (!snap || !wasDrag) return
+      const idx = Math.max(0, Math.min(order.length - 1, Math.round((window.scrollY - stageTopPx) / stepPx())))
+      setScroll(stageTopPx + idx * stepPx(), false)
     }
+    const up = (e: PointerEvent) => { if (e.pointerId === pid || pid === -1) finish(true) }
+    // A cancel means the browser (or iOS momentum) took the gesture. Snapping
+    // into that with a 1.1s animated scrollTo is what yanked the page back.
+    const cancel = (e: PointerEvent) => { if (e.pointerId === pid) finish(false) }
 
     pin.style.cursor = 'grab'
     pin.style.touchAction = 'pan-y'
     pin.addEventListener('pointerdown', down)
-    window.addEventListener('pointermove', move, { passive: false })
-    window.addEventListener('pointerup', up)
-    window.addEventListener('pointercancel', up)
+    // Pointer capture retargets move/up to the pin, so these no longer sit on
+    // window firing for every gesture anywhere on the page.
+    pin.addEventListener('pointermove', move, { passive: false })
+    pin.addEventListener('pointerup', up)
+    pin.addEventListener('pointercancel', cancel)
     return () => {
+      if (raf) cancelAnimationFrame(raf)
       pin.style.cursor = ''
       pin.style.touchAction = ''
+      pin.style.userSelect = ''
       pin.removeEventListener('pointerdown', down)
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      window.removeEventListener('pointercancel', up)
+      pin.removeEventListener('pointermove', move)
+      pin.removeEventListener('pointerup', up)
+      pin.removeEventListener('pointercancel', cancel)
     }
   }, [reduced, order.length])
 
@@ -239,7 +329,9 @@ export default function Hero() {
       ref={stageRef}
       id="top"
       style={{
-        height: reduced ? '100svh' : `${heightVh}vh`,
+        // svh, not vh: the sticky pin below is 100svh, so mixing units meant
+        // the track and the pin disagreed by the height of the phone's URL bar.
+        height: reduced ? '100svh' : `${heightVh}svh`,
         backgroundColor: bgDark,
         transition: 'background-color 650ms cubic-bezier(0.25,0.46,0.45,0.94)',
       }}
@@ -348,14 +440,18 @@ export default function Hero() {
         )}
 
         {/* bottom-left: title */}
-        <div className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] left-4 sm:bottom-16 sm:left-16" style={{ zIndex: 60, maxWidth: 340 }}>
+        {/* The CTA sits on this same line, bottom-right. On a phone a 340px
+            title box ran straight under it — measured 15px of overlap at 375px
+            wide, more on the longer titles — so the box is capped to whatever
+            is left beside the pill. */}
+        <div className="absolute bottom-[calc(1.5rem_+_env(safe-area-inset-bottom))] left-4 sm:bottom-16 sm:left-16" style={{ zIndex: 60, maxWidth: isMobile ? 'calc(100vw - 11rem)' : 340 }}>
           <span
             className="mb-2 inline-block rounded-full px-3 py-1 text-[10px] font-semibold uppercase"
             style={{ backgroundColor: cake.dark ? 'rgba(255,255,255,0.10)' : 'rgba(58,42,30,0.05)', color: cake.dark ? '#E8B98A' : '#7C4A12', letterSpacing: '0.12em', border: `1px solid ${cake.accent}33` }}
           >
             {cake.category}
           </span>
-          <h2 className="font-display" style={{ color: textMain, fontSize: 'clamp(32px, 5vw, 56px)', lineHeight: 1.02, fontWeight: 800 }}>
+          <h2 className="font-display" style={{ color: textMain, fontSize: 'clamp(32px, 5vw, 56px)', lineHeight: 1.02, fontWeight: 800, overflowWrap: 'anywhere' }}>
             {cake.title}
           </h2>
           <p className="mt-2 hidden text-sm sm:block" style={{ color: textSub, lineHeight: 1.6 }}>{cake.blurb}</p>

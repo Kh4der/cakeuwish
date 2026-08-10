@@ -18,6 +18,7 @@ interface Particle { x: number; y: number; hx: number; hy: number; vx: number; v
 export default function Intro() {
   const reduced = usePrefersReducedMotion()
   const stageRef = useRef<HTMLDivElement>(null)
+  const pinRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const hintRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef(0)
@@ -30,7 +31,12 @@ export default function Intro() {
     const canvas = canvasRef.current, stage = stageRef.current
     if (!canvas || !stage) return
     const w = stage.clientWidth || window.innerWidth
-    const h = window.innerHeight
+    // Measure the sticky box (100svh), not window.innerHeight. They differ by
+    // the height of the phone's URL bar, which is why the wordmark sat ~30px
+    // below the visual centre whenever the bar was retracted. The canvas itself
+    // must NOT be measured — it carries the inline height set just below and
+    // would latch a stale value forever.
+    const h = (canvas.parentElement as HTMLElement | null)?.clientHeight || window.innerHeight
     if (w < 10 || h < 10) return // zero-sized viewport (hidden tab / pre-render) — getImageData would throw; resize rebuilds
     const dpr = Math.min(window.devicePixelRatio || 1, w < 768 ? 1.25 : 2) // lower DPR on phones to cut per-frame fill cost
     sizeRef.current = { w, h, dpr }
@@ -253,8 +259,18 @@ export default function Intro() {
     window.addEventListener('pointerup', release, { passive: true })
     window.addEventListener('pointercancel', release, { passive: true })
     window.addEventListener('pointerleave', release, { passive: true })
+    // Rebuilding means getImageData over the whole viewport, a ~20k-sample
+    // rescan and every particle snapped home — visibly, mid-gesture. Only a
+    // real WIDTH change can invalidate the layout now that the height comes
+    // from a 100svh box, so a URL-bar slide no longer triggers any of it.
     let rT = 0
-    const onResize = () => { window.clearTimeout(rT); rT = window.setTimeout(build, 150) } // debounce (iOS toolbar fires resize repeatedly)
+    let lastW = window.innerWidth
+    const onResize = () => {
+      if (window.innerWidth === lastW) return
+      lastW = window.innerWidth
+      window.clearTimeout(rT)
+      rT = window.setTimeout(build, 150)
+    }
     window.addEventListener('resize', onResize)
     return () => {
       cancelAnimationFrame(raf)
@@ -272,10 +288,14 @@ export default function Intro() {
   // scroll progress (sticky pin)
   useEffect(() => {
     if (reduced) return
+    // The divisor is the pin's own height, not window.innerHeight: the section
+    // is 170svh and the pin is 100svh, so mixing in a live innerHeight made the
+    // disperse/zoom/fade curve shift by the height of the URL bar mid-scroll.
     const onScroll = () => {
       const s = stageRef.current
-      if (!s) return
-      const total = s.offsetHeight - window.innerHeight
+      const p = pinRef.current
+      if (!s || !p) return
+      const total = s.offsetHeight - p.offsetHeight
       progressRef.current = total > 0 ? clamp01(-s.getBoundingClientRect().top / total) : 0
       if (hintRef.current) hintRef.current.style.opacity = String(1 - clamp01(progressRef.current / 0.05))
     }
@@ -285,9 +305,9 @@ export default function Intro() {
   }, [reduced])
 
   return (
-    <section ref={stageRef} id="intro" style={{ height: reduced ? '100svh' : '170vh', backgroundColor: '#F3EDE1' }}>
+    <section ref={stageRef} id="intro" style={{ height: reduced ? '100svh' : '170svh', backgroundColor: '#F3EDE1' }}>
       <h1 className="sr-only">CakeUWish — Custom Celebration Cakes in Chantilly, VA</h1>
-      <div className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
+      <div ref={pinRef} className="sticky top-0 flex h-[100svh] w-full items-center justify-center overflow-hidden">
         <HoverBloom />
         <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
         <div ref={hintRef} className="pointer-events-none absolute bottom-10 text-xs font-semibold uppercase tracking-[0.3em]" style={{ color: 'rgba(58,42,30,0.68)' }}>
