@@ -55,7 +55,6 @@ function BeeModel({
   const desired = useRef(new THREE.Vector3())
   const reseed = useRef(false)
   const nextProbe = useRef(0)
-  const armed = useRef(false)
 
   const rig = useMemo<BeeRig & { scale: number }>(() => {
     const r = autoRig(scene)
@@ -254,15 +253,6 @@ function BeeModel({
       hit.style.transform = `translate(${Math.round((p.x * 0.5 + 0.5) * size.width)}px, ${Math.round(
         (-p.y * 0.5 + 0.5) * size.height,
       )}px)`
-      // The tap target is LIVE ONLY WHEN THE BEE HAS SETTLED. In flight it is
-      // an invisible 44px circle sweeping across the page, and on a phone it
-      // used to be steered onto the exact spot your finger just left — so the
-      // next tap opened the chat instead of hitting the link underneath.
-      const settle = !chasing && vel.current.lengthSq() < 0.02
-      if (settle !== armed.current) {
-        armed.current = settle
-        hit.style.pointerEvents = settle ? 'auto' : 'none'
-      }
     }
   })
 
@@ -436,15 +426,21 @@ export default function BeeCompanion() {
 
       {/* Hover target that rides along with the bee. The canvas itself never
           takes clicks; this small circle does. Hovering it puffs out the
-          speech cloud, clicking opens the chat. It starts parked off-screen
-          and inert — the render loop arms it once the bee settles. */}
+          speech cloud, clicking opens the chat.
+          It is ALWAYS live. An earlier version armed it only once the bee had
+          settled, to stop an invisible target stealing taps — but the bee never
+          settles (it always wanders, and on desktop it counts as chasing for
+          1.6s after any mouse move), so the target was live only 8% of the time
+          and "Ask me!" became unclickable. The tap-stealing is fixed properly
+          instead: the bee no longer follows your finger, and on touch it wears
+          a visible label. It starts parked off-screen so it can't sit at the
+          top-left corner before the first frame. */}
       <div
         ref={hitRef}
         className="fixed left-0 top-0"
         style={{
           zIndex: 46,
           willChange: 'transform',
-          pointerEvents: 'none',
           transform: 'translate(-300px, -300px)',
         }}
       >
